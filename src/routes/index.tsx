@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Header, type MissionEvent, type SystemStatus } from "@/components/gcs/Header";
-import { RocketDashboard } from "@/components/gcs/RocketDashboard";
 import { CansatDashboard } from "@/components/gcs/CansatDashboard";
 import { AttitudeIndicator } from "@/components/gcs/AttitudeIndicator";
 import { PacketMonitor } from "@/components/gcs/PacketMonitor";
@@ -20,17 +19,17 @@ export const Route = createFileRoute("/")({
   component: GroundStation,
   head: () => ({
     meta: [
-      { title: "Mission Ground Station · Rocket + CanSat Telemetry" },
+      { title: "Mission Ground Station · CanSat Telemetry" },
       {
         name: "description",
         content:
-          "Live aerospace ground control station: rocket and CanSat telemetry, flight state timelines, trajectory maps, alerts and command console.",
+          "Live aerospace ground control station: CanSat telemetry, flight state timeline, descent trajectory map, alerts and command console.",
       },
-      { property: "og:title", content: "Mission Ground Station · Rocket + CanSat Telemetry" },
+      { property: "og:title", content: "Mission Ground Station · CanSat Telemetry" },
       {
         property: "og:description",
         content:
-          "Real-time telemetry dashboards, trajectory tracking, mission alerts and command uplink for a CanSat competition flight.",
+          "Real-time CanSat telemetry dashboard, descent tracking, mission alerts and command uplink for a CanSat competition flight.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -43,7 +42,7 @@ function stamp() {
 }
 
 function GroundStation() {
-  const { rocket, cansat } = useTelemetry();
+  const { cansat } = useTelemetry();
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
   const nextId = useRef(1);
   const [simSpeed, setSimSpeed] = useState<"1x" | "2x" | "5x">("1x");
@@ -63,23 +62,10 @@ function GroundStation() {
 
   // ---- Mission event log -------------------------------------------------
   const [events, setEvents] = useState<MissionEvent[]>([]);
-  const prevRocketState = useRef(rocket.state);
   const prevCansatState = useRef(cansat.state);
   useEffect(() => {
     const add = (label: string) => setEvents((e) => [...e, { label, time: stamp() }].slice(-30));
 
-    if (prevRocketState.current !== rocket.state) {
-      if (rocket.state === "LIFTOFF") {
-        add("IGNITION");
-        add("LIFT-OFF");
-      } else if (rocket.state === "APOGEE") add("APOGEE");
-      else if (rocket.state === "PAYLOAD_SEPARATION") {
-        add("DROGUE DEPLOY");
-        add("PAYLOAD SEPARATION");
-      } else if (rocket.state === "AEROBRAKE_RELEASE") add("MAIN / AEROBRAKE RELEASE");
-      else if (rocket.state === "IMPACT") add("TOUCHDOWN");
-      prevRocketState.current = rocket.state;
-    }
     if (prevCansatState.current !== cansat.state) {
       if (cansat.state === "EJECTION") add("CANSAT EJECTION");
       else if (cansat.state === "CONTROLLED_DESCENT") add("PROPELLER DEPLOY / CONTROLLED DESCENT");
@@ -87,7 +73,7 @@ function GroundStation() {
       else if (cansat.state === "MISSION_COMPLETE") add("MISSION COMPLETE");
       prevCansatState.current = cansat.state;
     }
-  }, [rocket.state, cansat.state]);
+  }, [cansat.state]);
 
   // ---- Command lifecycle -------------------------------------------------
   const pushCommand = (
@@ -129,29 +115,19 @@ function GroundStation() {
   const now = Date.now();
   const conditions = useMemo(() => {
     const list: { type: AlertType; level: "warn" | "danger"; source: ActiveAlert["source"]; detail?: string }[] = [];
-    const rocketStale = rocket.lastPacketAt > 0 && now - rocket.lastPacketAt > 3000;
     const cansatStale = cansat.lastPacketAt > 0 && now - cansat.lastPacketAt > 3000;
-    if (rocket.linkQuality < 62 || rocket.rssi < -100)
-      list.push({ type: "COMMUNICATION LOST", level: "danger", source: "ROCKET" });
     if (cansat.linkQuality < 58 || cansat.rssi < -100)
       list.push({ type: "COMMUNICATION LOST", level: "danger", source: "CANSAT" });
-    if (rocketStale) list.push({ type: "TELEMETRY TIMEOUT", level: "danger", source: "ROCKET" });
     if (cansatStale) list.push({ type: "TELEMETRY TIMEOUT", level: "danger", source: "CANSAT" });
-    if (rocket.battery < 11.2)
-      list.push({ type: "LOW BATTERY", level: "warn", source: "ROCKET", detail: `${rocket.battery.toFixed(2)} V` });
     if (cansat.battery < 7.0)
       list.push({ type: "LOW BATTERY", level: "warn", source: "CANSAT", detail: `${cansat.battery.toFixed(2)} V` });
-    if (rocket.temperature > 45)
-      list.push({ type: "HIGH TEMPERATURE", level: "warn", source: "ROCKET", detail: `${rocket.temperature.toFixed(1)} °C` });
     if (cansat.irTemp > 45)
       list.push({ type: "HIGH TEMPERATURE", level: "warn", source: "CANSAT", detail: `${cansat.irTemp.toFixed(1)} °C` });
-    if (!rocket.gpsValid) list.push({ type: "GPS INVALID", level: "warn", source: "ROCKET" });
     if (!cansat.gpsValid) list.push({ type: "GPS INVALID", level: "warn", source: "CANSAT" });
     if (parachuteFail)
       list.push({ type: "PARACHUTE COMMAND FAILED", level: "danger", source: "SYS" });
     return list;
   }, [
-    rocket.linkQuality, rocket.rssi, rocket.battery, rocket.temperature, rocket.gpsValid, rocket.lastPacketAt,
     cansat.linkQuality, cansat.rssi, cansat.battery, cansat.irTemp, cansat.gpsValid, cansat.lastPacketAt,
     parachuteFail, now,
   ]);
@@ -186,16 +162,11 @@ function GroundStation() {
   // ---- Derived mission phase / status ------------------------------------
   const missionPhase = useMemo(() => {
     if (cansat.state === "MISSION_COMPLETE") return "MISSION COMPLETE";
-    if (cansat.state === "LANDED" && rocket.state === "IMPACT") return "RECOVERY";
+    if (cansat.state === "LANDED") return "RECOVERY";
     if (cansat.state === "CONTROLLED_DESCENT") return "CANSAT CONTROLLED DESCENT";
     if (cansat.state === "PRIMARY_DESCENT" || cansat.state === "EJECTION") return "CANSAT DESCENT";
-    if (rocket.state === "IMPACT") return "ROCKET LANDED";
-    if (rocket.state === "DESCENT" || rocket.state === "AEROBRAKE_RELEASE") return "ROCKET DESCENT";
-    if (rocket.state === "PAYLOAD_SEPARATION") return "PAYLOAD SEPARATION";
-    if (rocket.state === "APOGEE") return "APOGEE";
-    if (rocket.state === "ASCENT" || rocket.state === "LIFTOFF") return "ASCENT";
     return "PRE-LAUNCH";
-  }, [rocket.state, cansat.state]);
+  }, [cansat.state]);
 
   const systemStatus: SystemStatus = activeAlerts.some((a) => a.level === "danger")
     ? "CRITICAL"
@@ -229,7 +200,6 @@ function GroundStation() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header
-        rocketRf={{ rssi: rocket.rssi, snr: rocket.snr, quality: rocket.linkQuality }}
         cansatRf={{ rssi: cansat.rssi, snr: cansat.snr, quality: cansat.linkQuality }}
         missionId="CS-2026-042"
         launchSite="Sriharikota · Pad-B"
@@ -240,36 +210,12 @@ function GroundStation() {
       />
 
       <main className="flex-1 p-4 flex flex-col gap-4">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div className="panel p-4">
-            <RocketDashboard
-              data={rocket}
-              onCommand={(c, onStage) => pushCommand("ROCKET", c, onStage)}
-            />
-          </div>
-          <div className="panel p-4">
-            <CansatDashboard
-              data={cansat}
-              onCommand={(c, onStage) => pushCommand("CANSAT", c, onStage)}
-            />
-          </div>
+        <div className="panel p-4">
+          <CansatDashboard
+            data={cansat}
+            onCommand={(c, onStage) => pushCommand("CANSAT", c, onStage)}
+          />
         </div>
-
-        <TrajectoryPanel
-          label="Rocket Flight Path"
-          accent="var(--rocket)"
-          path={rocket.path}
-          profile={rocket.charts.altitude}
-          profileColor="oklch(0.76 0.16 55)"
-          vector={{ headingDeg: heading(rocket.path), speed: rocket.velocity }}
-          markers={[
-            ...(rocket.markers.launch ? [{ label: "Launch Point", pos: rocket.markers.launch, color: "oklch(0.78 0.15 155)" }] : []),
-            ...(rocket.markers.apogee ? [{ label: "Apogee", pos: rocket.markers.apogee, color: "oklch(0.85 0.15 85)" }] : []),
-            ...(rocket.markers.drogue ? [{ label: "Drogue Deploy", pos: rocket.markers.drogue, color: "oklch(0.75 0.16 300)" }] : []),
-            ...(rocket.markers.main ? [{ label: "Main / Aerobrake", pos: rocket.markers.main, color: "oklch(0.8 0.14 210)" }] : []),
-            ...(rocket.markers.landing ? [{ label: "Landing Point", pos: rocket.markers.landing, color: "oklch(0.7 0.2 25)" }] : []),
-          ]}
-        />
 
         <TrajectoryPanel
           label="CanSat Descent Path"
@@ -286,14 +232,7 @@ function GroundStation() {
           ]}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          <AttitudeIndicator
-            label="Rocket"
-            accent="var(--rocket)"
-            pitch={rocket.gyro[1] * 0.5}
-            roll={rocket.gyro[0] * 0.5}
-            yaw={rocket.gyro[2] * 0.5}
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <AttitudeIndicator
             label="CanSat"
             accent="var(--cansat)"
@@ -305,18 +244,10 @@ function GroundStation() {
             tx={packets.tx}
             rx={packets.rx}
             loss={packets.loss}
-            snr={(rocket.snr + cansat.snr) / 2}
+            snr={cansat.snr}
             lastPacket={stamp()}
-            rateHz={(rocket.updateRate + cansat.updateRate) / 2}
-            status={
-              linkStatus(rocket.linkQuality, rocket.lastPacketAt) === "LOST" ||
-              linkStatus(cansat.linkQuality, cansat.lastPacketAt) === "LOST"
-                ? "LOST"
-                : linkStatus(rocket.linkQuality, rocket.lastPacketAt) === "DEGRADED" ||
-                    linkStatus(cansat.linkQuality, cansat.lastPacketAt) === "DEGRADED"
-                  ? "DEGRADED"
-                  : "CONNECTED"
-            }
+            rateHz={cansat.updateRate}
+            status={linkStatus(cansat.linkQuality, cansat.lastPacketAt)}
           />
           <div className="panel p-3 flex flex-col gap-2">
             <span className="label-mono">RF Config & Playback</span>
