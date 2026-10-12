@@ -71,18 +71,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Ground Station · Rocket + CanSat Telemetry" },
+      { title: "Ground Station · CanSat Telemetry" },
       {
         name: "description",
         content:
-          "Mission-control ground station for CanSat competition: dual rocket and CanSat telemetry, flight state timelines, live charts, GPS map and command console.",
+          "Mission-control ground station for CanSat competition: CanSat telemetry, flight state timeline, live charts, GPS map and command console.",
       },
       { name: "author", content: "Ground Station" },
-      { property: "og:title", content: "Ground Station · Rocket + CanSat Telemetry" },
+      { property: "og:title", content: "Ground Station · CanSat Telemetry" },
       {
         property: "og:description",
         content:
-          "Dual rocket and CanSat telemetry dashboard with flight timelines, live charts, GPS map and command console.",
+          "CanSat telemetry dashboard with flight timeline, live charts, GPS map and command console.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

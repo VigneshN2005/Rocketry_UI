@@ -28,7 +28,7 @@ export function PacketMonitor({ tx, rx, loss, snr, lastPacket, rateHz, status }:
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="TX" value={tx} color="var(--rocket)" />
+        <Stat label="TX" value={tx} color="var(--cansat)" />
         <Stat label="RX" value={rx} color="var(--cansat)" />
         <Stat label="LOSS" value={`${lossPct.toFixed(2)}%`} color="var(--warn)" />
       </div>
@@ -44,7 +44,7 @@ export function PacketMonitor({ tx, rx, loss, snr, lastPacket, rateHz, status }:
             className="h-full"
             style={{
               width: `${Math.max(0, 100 - lossPct * 4)}%`,
-              background: "linear-gradient(to right, var(--ok), var(--rocket))",
+              background: "linear-gradient(to right, var(--ok), var(--cansat))",
             }}
           />
         </div>

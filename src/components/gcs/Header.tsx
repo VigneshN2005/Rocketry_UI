@@ -8,7 +8,6 @@ export type MissionEvent = { label: string; time: string };
 export type SystemStatus = "NOMINAL" | "DEGRADED" | "CRITICAL";
 
 type Props = {
-  rocketRf: RfStatus;
   cansatRf: RfStatus;
   missionId: string;
   launchSite: string;
@@ -25,7 +24,6 @@ const STATUS_COLOR: Record<SystemStatus, string> = {
 };
 
 export function Header({
-  rocketRf,
   cansatRf,
   missionId,
   launchSite,
@@ -46,12 +44,12 @@ export function Header({
     <header className="border-b border-border bg-[oklch(0.155_0_0)]/80 backdrop-blur">
       <div className="px-5 py-3 flex items-center gap-6 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-md border border-rocket/50 flex items-center justify-center bg-[oklch(0.18_0.02_55)]">
-            <Radio className="h-4 w-4" style={{ color: "var(--rocket)" }} />
+          <div className="h-8 w-8 rounded-md border border-cansat/50 flex items-center justify-center bg-[oklch(0.18_0.02_210)]">
+            <Radio className="h-4 w-4" style={{ color: "var(--cansat)" }} />
           </div>
           <div className="leading-tight">
             <div className="font-semibold tracking-tight">Ground Station</div>
-            <div className="label-mono text-[10px]">Rocket + CanSat Telemetry</div>
+            <div className="label-mono text-[10px]">CanSat Telemetry</div>
           </div>
         </div>
 
@@ -66,7 +64,7 @@ export function Header({
 
         <div className="flex flex-col leading-tight">
           <span className="label-mono">Mission Phase</span>
-          <span className="readout text-sm" style={{ color: "var(--rocket)" }}>
+          <span className="readout text-sm" style={{ color: "var(--cansat)" }}>
             {missionPhase}
           </span>
         </div>
@@ -86,12 +84,12 @@ export function Header({
         <div className="hidden md:flex flex-col leading-tight min-w-[220px]">
           <span className="label-mono">Event Log</span>
           {events.length === 0 ? (
-            <span className="readout text-[11px] text-muted-foreground">Awaiting ignition…</span>
+            <span className="readout text-[11px] text-muted-foreground">Awaiting ejection…</span>
           ) : (
             <div className="flex flex-col gap-0.5 max-h-[38px] overflow-hidden">
               {events.slice(-2).map((e, i) => (
                 <div key={i} className="flex items-center gap-2 leading-tight">
-                  <span className="readout text-[11px]" style={{ color: "var(--rocket)" }}>
+                  <span className="readout text-[11px]" style={{ color: "var(--cansat)" }}>
                     {e.time}
                   </span>
                   <span className="label-mono text-[10px]">{e.label}</span>
@@ -111,7 +109,6 @@ export function Header({
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <RfChip label="ROCKET" accent="var(--rocket)" rf={rocketRf} icon={<Radio className="h-3 w-3" />} />
           <RfChip label="CANSAT" accent="var(--cansat)" rf={cansatRf} icon={<Satellite className="h-3 w-3" />} />
         </div>
       </div>
