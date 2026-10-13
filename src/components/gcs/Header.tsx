@@ -1,20 +1,19 @@
-import { useEffect, useState } from "react";
-import { Radio, Satellite, AlertTriangle } from "lucide-react";
-
-type RfStatus = { rssi: number; snr: number; quality: number };
+import { useEffect, useState, type ReactNode } from "react";
 
 export type MissionEvent = { label: string; time: string };
-
 export type SystemStatus = "NOMINAL" | "DEGRADED" | "CRITICAL";
 
 type Props = {
-  cansatRf: RfStatus;
   missionId: string;
   launchSite: string;
-  alert?: { level: "info" | "warn" | "danger"; message: string } | null;
-  events: MissionEvent[];
+  met: number; // mission elapsed time, seconds since separation (negative before)
   missionPhase: string;
+  cansatState: string;
   systemStatus: SystemStatus;
+  alert?: { level: "info" | "warn" | "danger"; message: string } | null;
+  link: { status: "CONNECTED" | "DEGRADED" | "LOST"; text: string };
+  nav: ReactNode;
+  controls: ReactNode;
 };
 
 const STATUS_COLOR: Record<SystemStatus, string> = {
@@ -22,157 +21,108 @@ const STATUS_COLOR: Record<SystemStatus, string> = {
   DEGRADED: "var(--warn)",
   CRITICAL: "var(--destructive)",
 };
+const LINK_COLOR = { CONNECTED: "var(--ok)", DEGRADED: "var(--warn)", LOST: "var(--destructive)" } as const;
+
+const hms = (d: Date) => d.toISOString().slice(11, 19);
+
+function Clock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="clock-digits text-[clamp(20px,2.3vw,36px)] leading-none">{value}</span>
+      <span className="isro-serif text-[clamp(12px,1.2vw,18px)]" style={{ color: "oklch(0.82 0.2 145)" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function Item({ k, children }: { k: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col leading-tight">
+      <span className="label-mono text-[8.5px]">{k}</span>
+      {children}
+    </div>
+  );
+}
 
 export function Header({
-  cansatRf,
   missionId,
   launchSite,
-  alert,
-  events,
+  met,
   missionPhase,
+  cansatState,
   systemStatus,
+  alert,
+  link,
+  nav,
+  controls,
 }: Props) {
-  const [t, setT] = useState("--:--:--");
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
-    const tick = () => setT(new Date().toISOString().slice(11, 19));
+    const tick = () => setNow(new Date());
     tick();
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
   }, []);
 
+  const utc = now ? hms(now) : "--:--:--";
+  const ist = now ? hms(new Date(now.getTime() + 5.5 * 3600 * 1000)) : "--:--:--";
+  const metTxt = `${met < 0 ? "T−" : "T+"}${Math.abs(met).toFixed(0).padStart(3, "0")}`;
+  const alertColor =
+    alert?.level === "danger" ? "var(--destructive)" : alert?.level === "warn" ? "var(--warn)" : "var(--ok)";
+
   return (
-    <header className="border-b border-border bg-[oklch(0.16_0.035_255)]/80 backdrop-blur">
-      <div className="px-5 py-3 flex items-center gap-6 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-md border border-cansat/50 flex items-center justify-center bg-[oklch(0.2_0.05_235)]">
-            <Radio className="h-4 w-4" style={{ color: "var(--cansat)" }} />
+    <header className="shrink-0 border-b" style={{ background: "oklch(0.1 0.03 258)" }}>
+      {/* row 1: clocks and mission identity */}
+      <div className="px-4 py-1.5 flex items-center gap-x-8 gap-y-1 flex-wrap">
+        <Clock label="IST" value={ist} />
+        <Clock label="UTC" value={utc} />
+        <Clock label="MET" value={metTxt} />
+        <div className="ml-auto text-right leading-tight">
+          <div className="isro-serif text-[clamp(13px,1.3vw,20px)]" style={{ color: "oklch(0.9 0.15 100)" }}>
+            {missionId}
           </div>
-          <div className="leading-tight">
-            <div className="font-semibold tracking-tight">Ground Station</div>
-            <div className="label-mono text-[10px]">CanSat Telemetry</div>
-          </div>
-        </div>
-
-        <div className="hidden md:block h-8 w-px bg-border" />
-
-        <div className="hidden md:flex flex-col leading-tight">
-          <span className="label-mono">Mission Clock (UTC)</span>
-          <span className="readout text-lg">{t}</span>
-        </div>
-
-        <div className="hidden md:block h-8 w-px bg-border" />
-
-        <div className="flex flex-col leading-tight">
-          <span className="label-mono">Mission Phase</span>
-          <span className="readout text-sm" style={{ color: "var(--cansat)" }}>
-            {missionPhase}
-          </span>
-        </div>
-
-        <div className="flex flex-col leading-tight">
-          <span className="label-mono">System Status</span>
-          <span
-            className="label-mono text-[10px] px-2 py-0.5 rounded border mt-0.5 w-fit"
-            style={{ color: STATUS_COLOR[systemStatus], borderColor: STATUS_COLOR[systemStatus] }}
-          >
-            {systemStatus}
-          </span>
-        </div>
-
-        <div className="hidden md:block h-8 w-px bg-border" />
-
-        <div className="hidden md:flex flex-col leading-tight min-w-[220px]">
-          <span className="label-mono">Event Log</span>
-          {events.length === 0 ? (
-            <span className="readout text-[11px] text-muted-foreground">Awaiting ejection…</span>
-          ) : (
-            <div className="flex flex-col gap-0.5 max-h-[38px] overflow-hidden">
-              {events.slice(-2).map((e, i) => (
-                <div key={i} className="flex items-center gap-2 leading-tight">
-                  <span className="readout text-[11px]" style={{ color: "var(--cansat)" }}>
-                    {e.time}
-                  </span>
-                  <span className="label-mono text-[10px]">{e.label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="hidden xl:flex flex-col leading-tight">
-          <span className="label-mono">Mission ID</span>
-          <span className="readout text-sm">{missionId}</span>
-        </div>
-        <div className="hidden xl:flex flex-col leading-tight">
-          <span className="label-mono">Launch Site</span>
-          <span className="readout text-sm">{launchSite}</span>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <RfChip label="CANSAT" accent="var(--cansat)" rf={cansatRf} icon={<Satellite className="h-3 w-3" />} />
+          <div className="label-mono text-[9px]">{launchSite}</div>
         </div>
       </div>
 
-      {alert ? (
+      {/* row 2: navigation, state items, controls */}
+      <div className="px-3 py-1.5 flex items-center gap-x-5 gap-y-1.5 flex-wrap border-t" style={{ background: "oklch(0.15 0.04 256)" }}>
+        <div className="flex gap-1">{nav}</div>
+
+        <div className="hidden lg:block h-7 w-px bg-border" />
+        <Item k="Mission phase">
+          <span className="readout text-[12px]" style={{ color: "var(--cansat)" }}>
+            {missionPhase}
+          </span>
+        </Item>
+        <Item k="CanSat state">
+          <span className="readout text-[12px]">{cansatState.replace(/_/g, " ")}</span>
+        </Item>
+        <Item k="System">
+          <span className="readout text-[12px]" style={{ color: STATUS_COLOR[systemStatus] }}>
+            {systemStatus}
+          </span>
+        </Item>
+        <Item k="CanSat ↔ ground LoRa">
+          <span className="readout text-[12px]" style={{ color: LINK_COLOR[link.status] }}>
+            {link.status} <span className="opacity-70 text-[10.5px]">{link.text}</span>
+          </span>
+        </Item>
+
         <div
-          className="px-5 py-1.5 flex items-center gap-2 border-t border-border"
-          style={{
-            background:
-              alert.level === "danger"
-                ? "oklch(0.28 0.1 25 / 0.4)"
-                : alert.level === "warn"
-                  ? "oklch(0.3 0.09 85 / 0.35)"
-                  : "oklch(0.24 0.03 210 / 0.35)",
-          }}
+          className={`flex items-center gap-2 rounded px-2.5 py-1 border ${alert?.level === "danger" ? "master-blink" : ""}`}
+          style={{ borderColor: alertColor, background: "oklch(0.14 0.035 255)" }}
+          title="Master alert"
         >
-          <AlertTriangle
-            className="h-3.5 w-3.5"
-            style={{
-              color:
-                alert.level === "danger"
-                  ? "var(--destructive)"
-                  : alert.level === "warn"
-                    ? "var(--warn)"
-                    : "var(--cansat)",
-            }}
-          />
-          <span className="label-mono text-[10px]" style={{ letterSpacing: "0.18em" }}>
-            {alert.message}
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: alertColor, boxShadow: `0 0 8px ${alertColor}` }} />
+          <span className="label-mono text-[9.5px]" style={{ color: alertColor, letterSpacing: "0.1em" }}>
+            {alert && alert.level !== "info" ? `⚠ ${alert.message}` : (alert?.message ?? "ALL CLEAR")}
           </span>
         </div>
-      ) : null}
-    </header>
-  );
-}
 
-function RfChip({
-  label,
-  accent,
-  rf,
-  icon,
-}: {
-  label: string;
-  accent: string;
-  rf: RfStatus;
-  icon: React.ReactNode;
-}) {
-  const good = rf.quality > 80;
-  return (
-    <div
-      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border"
-      style={{ borderColor: "var(--color-border)", background: "oklch(0.17 0 0)" }}
-    >
-      <span style={{ color: accent }}>{icon}</span>
-      <span className="label-mono text-[10px]" style={{ color: accent }}>
-        {label}
-      </span>
-      <span
-        className="h-1.5 w-1.5 rounded-full dot-pulse"
-        style={{ background: good ? "var(--ok)" : "var(--warn)" }}
-      />
-      <span className="readout text-[11px] text-muted-foreground">
-        {rf.rssi.toFixed(0)} dBm · SNR {rf.snr.toFixed(1)} dB · {rf.quality.toFixed(0)}%
-      </span>
-    </div>
+        <div className="ml-auto flex items-center gap-1.5">{controls}</div>
+      </div>
+    </header>
   );
 }

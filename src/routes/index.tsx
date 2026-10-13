@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, RotateCcw } from "lucide-react";
-import { Header, type MissionEvent, type SystemStatus } from "@/components/gcs/Header";
-import { StateTimeline } from "@/components/gcs/StateTimeline";
-import { TrajectoryMap } from "@/components/gcs/TrajectoryMap";
+import { Pause, Play, RotateCcw, X } from "lucide-react";
+import { Header, type SystemStatus } from "@/components/gcs/Header";
+import { StatusFooter } from "@/components/gcs/StatusFooter";
+import { TrajectoryScreen } from "@/components/gcs/TrajectoryScreen";
+import { FlightParamsScreen } from "@/components/gcs/FlightParamsScreen";
+import { LivePlots } from "@/components/gcs/LivePlots";
 import { ParameterBox } from "@/components/gcs/ParameterBox";
-import { FlightGraphs } from "@/components/gcs/FlightGraphs";
 import { SensorsPanel } from "@/components/gcs/SensorsPanel";
 import { LandingPanel } from "@/components/gcs/LandingPanel";
 import { HealthLinkPanel } from "@/components/gcs/HealthLinkPanel";
@@ -18,12 +19,7 @@ import {
 } from "@/components/gcs/AlertsPanel";
 import { CommandConsole, type ConsoleEntry } from "@/components/gcs/CommandConsole";
 import type { CmdStage } from "@/components/gcs/CommandButton";
-import {
-  CANSAT_STATES,
-  useTelemetry,
-  type CommandResult,
-  type PlaybackSpeed,
-} from "@/components/gcs/telemetry";
+import { useTelemetry, type CommandResult, type PlaybackSpeed } from "@/components/gcs/telemetry";
 import { MISSION_ID, SITE_NAME } from "@/components/gcs/mission";
 
 export const Route = createFileRoute("/")({
@@ -52,20 +48,24 @@ function stamp() {
   return new Date().toISOString().slice(11, 19);
 }
 
-type TabId = "graphs" | "sensors" | "landing" | "health" | "commands";
-const TABS: { id: TabId; label: string }[] = [
-  { id: "graphs", label: "Flight Graphs" },
+type ScreenId = "trajectory" | "params" | "plots" | "sensors" | "landing" | "health" | "commands";
+const SCREENS: { id: ScreenId; label: string }[] = [
+  { id: "trajectory", label: "Trajectory" },
+  { id: "params", label: "Flight Parameters" },
+  { id: "plots", label: "Telemetry Plots" },
   { id: "sensors", label: "Sensors" },
   { id: "landing", label: "Landing Logic" },
   { id: "health", label: "Health & Signal" },
-  { id: "commands", label: "Commands" },
+  { id: "commands", label: "Commands & Alerts" },
 ];
 
 function GroundStation() {
   const [speed, setSpeed] = useState<PlaybackSpeed>("5x");
   const [paused, setPaused] = useState(false);
   const { cansat, restart, assistOff, setTarget } = useTelemetry(speed, paused);
-  const [tab, setTab] = useState<TabId>("graphs");
+  const [screen, setScreen] = useState<ScreenId>("trajectory");
+  const [drawer, setDrawer] = useState(false);
+  const [stateTimes, setStateTimes] = useState<Record<string, string>>({});
 
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
   const nextId = useRef(1);
@@ -197,10 +197,11 @@ function GroundStation() {
   }, [conditions]);
 
   // ---- Header data -------------------------------------------------------
-  const events: MissionEvent[] = useMemo(
-    () => cansat.events.map((e) => ({ label: e.label, time: `T+${e.t.toFixed(0)}s` })).slice(-30),
-    [cansat.events],
-  );
+  useEffect(() => {
+    setStateTimes((prev) =>
+      cansat.state === "STANDBY" ? { STANDBY: stamp() } : prev[cansat.state] ? prev : { ...prev, [cansat.state]: stamp() },
+    );
+  }, [cansat.state]);
 
   const missionPhase = useMemo(() => {
     switch (cansat.landing) {
@@ -235,97 +236,121 @@ function GroundStation() {
     return { level: "info" as const, message: "SIMULATION MODE · TELEMETRY NOMINAL" };
   }, [activeAlerts, cansat.state]);
 
+  const ageS = paused ? 0 : Math.max(0, (now - cansat.lastPacketAt) / 1000);
+  const linkStatus = ageS > 3 ? "LOST" : cansat.linkQuality < 70 ? "DEGRADED" : "CONNECTED";
+
+  const navBtn = (id: ScreenId, label: string) => (
+    <button
+      key={id}
+      onClick={() => setScreen(id)}
+      className="px-3 py-1.5 rounded label-mono text-[10px] whitespace-nowrap border transition-colors"
+      style={{
+        borderColor: screen === id ? "var(--cansat)" : "transparent",
+        background: screen === id ? "oklch(0.27 0.07 235 / 0.7)" : undefined,
+        color: screen === id ? "oklch(0.98 0 0)" : undefined,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const controls = (
+    <>
+      <span className="label-mono text-[8.5px] mr-1 opacity-70 hidden xl:inline">SIMULATED PLAYBACK</span>
+      {(["1x", "5x", "10x"] as const).map((sp) => (
+        <button
+          key={sp}
+          onClick={() => setSpeed(sp)}
+          className="panel px-2 py-1 label-mono text-[9.5px] hover:bg-[oklch(0.25_0.045_255)]"
+          style={{ borderColor: speed === sp ? "var(--cansat)" : undefined, color: speed === sp ? "var(--cansat)" : undefined }}
+        >
+          {sp}
+        </button>
+      ))}
+      <button
+        onClick={() => setPaused((p) => !p)}
+        className="panel px-2 py-1 label-mono text-[9.5px] flex items-center gap-1 hover:bg-[oklch(0.25_0.045_255)]"
+        style={{ color: paused ? "var(--warn)" : undefined }}
+      >
+        {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+        {paused ? "Resume" : "Pause"}
+      </button>
+      <button
+        onClick={restart}
+        className="panel px-2 py-1 label-mono text-[9.5px] flex items-center gap-1 hover:bg-[oklch(0.25_0.045_255)]"
+      >
+        <RotateCcw className="h-3 w-3" /> Restart
+      </button>
+    </>
+  );
+
+  const scrollPage = "h-full overflow-y-auto scroll-thin p-4";
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <Header
-        cansatRf={{ rssi: cansat.rssi, snr: cansat.snr, quality: cansat.linkQuality }}
         missionId={MISSION_ID}
         launchSite={SITE_NAME}
-        alert={alert}
-        events={events}
+        met={cansat.met}
         missionPhase={missionPhase}
+        cansatState={cansat.state}
         systemStatus={systemStatus}
+        alert={alert}
+        link={{ status: linkStatus, text: `${cansat.rssi.toFixed(0)} dBm · SNR ${cansat.snr.toFixed(1)} dB` }}
+        nav={SCREENS.map((s) => navBtn(s.id, s.label))}
+        controls={controls}
       />
 
-      <main className="flex-1 p-4 flex flex-col gap-4 max-w-[1800px] w-full mx-auto">
-        <StateTimeline
-          states={CANSAT_STATES.filter((s) => s !== "BOOT")}
-          current={cansat.state}
-          accent="var(--cansat)"
-        />
-
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4 items-start">
-          <TrajectoryMap f={cansat} />
-          <ParameterBox f={cansat} />
-        </div>
-
-        {/* tab strip + playback */}
-        <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border">
-          <div className="flex gap-1 overflow-x-auto scroll-thin">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className="px-4 py-2.5 label-mono text-[10.5px] whitespace-nowrap border-b-2 -mb-px transition-colors"
-                style={{
-                  borderColor: tab === t.id ? "var(--cansat)" : "transparent",
-                  color: tab === t.id ? "oklch(0.97 0 0)" : undefined,
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+      <main className="flex-1 min-h-0 relative">
+        {screen === "trajectory" ? (
+          <TrajectoryScreen f={cansat} missionTitle="FLAMESTON-26 / TEAM 020 · CANSAT MISSION" />
+        ) : null}
+        {screen === "params" ? <FlightParamsScreen f={cansat} /> : null}
+        {screen === "plots" ? <LivePlots f={cansat} /> : null}
+        {screen === "sensors" ? (
+          <div className={scrollPage}>
+            <SensorsPanel f={cansat} />
           </div>
-          <div className="flex items-center gap-1.5 pb-1.5">
-            <span className="label-mono text-[9px] mr-1 opacity-70">SIMULATED · PLAYBACK</span>
-            {(["1x", "5x", "10x"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setSpeed(s)}
-                className="panel px-2.5 py-1 label-mono text-[10px] hover:bg-[oklch(0.25_0.045_255)]"
-                style={{
-                  borderColor: speed === s ? "var(--cansat)" : undefined,
-                  color: speed === s ? "var(--cansat)" : undefined,
-                }}
-              >
-                {s}
-              </button>
-            ))}
-            <button
-              onClick={() => setPaused((p) => !p)}
-              className="panel px-2.5 py-1 label-mono text-[10px] flex items-center gap-1 hover:bg-[oklch(0.25_0.045_255)]"
-              style={{ color: paused ? "var(--warn)" : undefined }}
-            >
-              {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-              {paused ? "Resume" : "Pause"}
-            </button>
-            <button
-              onClick={restart}
-              className="panel px-2.5 py-1 label-mono text-[10px] flex items-center gap-1 hover:bg-[oklch(0.25_0.045_255)]"
-            >
-              <RotateCcw className="h-3 w-3" /> Restart
-            </button>
+        ) : null}
+        {screen === "landing" ? (
+          <div className={scrollPage}>
+            <LandingPanel f={cansat} />
           </div>
-        </div>
-
-        {tab === "graphs" ? <FlightGraphs f={cansat} /> : null}
-        {tab === "sensors" ? <SensorsPanel f={cansat} /> : null}
-        {tab === "landing" ? <LandingPanel f={cansat} /> : null}
-        {tab === "health" ? <HealthLinkPanel f={cansat} /> : null}
-        {tab === "commands" ? (
-          <CommandsPanel f={cansat} onCommand={onCommand} onSetTarget={onSetTarget} />
+        ) : null}
+        {screen === "health" ? (
+          <div className={scrollPage}>
+            <HealthLinkPanel f={cansat} />
+          </div>
+        ) : null}
+        {screen === "commands" ? (
+          <div className={`${scrollPage} flex flex-col gap-4`}>
+            <CommandsPanel f={cansat} onCommand={onCommand} onSetTarget={onSetTarget} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <AlertsPanel active={activeAlerts} history={alertHistory} />
+              <CommandConsole entries={entries} />
+            </div>
+          </div>
         ) : null}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <AlertsPanel active={activeAlerts} history={alertHistory} />
-          <CommandConsole entries={entries} />
-        </div>
+        {/* slide-over: the complete parameter box */}
+        {drawer ? (
+          <aside
+            className="absolute right-0 top-0 bottom-0 z-30 w-[min(420px,100%)] overflow-y-auto scroll-thin p-3 border-l shadow-2xl"
+            style={{ background: "oklch(0.13 0.03 257 / 0.97)" }}
+          >
+            <button
+              onClick={() => setDrawer(false)}
+              className="absolute right-3 top-3 z-10 panel p-1 hover:bg-[oklch(0.25_0.045_255)]"
+              aria-label="Close parameter box"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <ParameterBox f={cansat} />
+          </aside>
+        ) : null}
       </main>
 
-      <footer className="border-t border-border px-5 py-2 flex items-center justify-between text-xs">
-        <span className="label-mono text-[10px]">Ground Station v1.1 · Simulated Telemetry</span>
-        <span className="label-mono text-[10px]">© CanSat Team 2026</span>
-      </footer>
+      <StatusFooter f={cansat} stateTimes={stateTimes} alertCount={activeAlerts.length} onParams={() => setDrawer((d) => !d)} />
     </div>
   );
 }

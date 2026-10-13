@@ -34,21 +34,21 @@ const tooltipStyle = {
 
 const xDomain: [number, (dataMax: number) => number] = [0, (m) => Math.max(60, Math.ceil(m / 20) * 20)];
 
-function EventPill({ viewBox, text, row }: { viewBox?: { x?: number; y?: number }; text: string; row: number }) {
+function EventPill({ viewBox, text, row, k = 1 }: { viewBox?: { x?: number; y?: number }; text: string; row: number; k?: number }) {
   const x = viewBox?.x ?? 0;
-  const y = (viewBox?.y ?? 0) + 6 + row * 20;
-  const w = text.length * 6.1 + 14;
+  const y = (viewBox?.y ?? 0) + 6 + row * 20 * k;
+  const w = (text.length * 6.1 + 14) * k;
   return (
     <g transform={`translate(${x - w / 2}, ${y})`}>
-      <rect width={w} height={16} rx={8} fill="oklch(0.36 0.03 255 / 0.92)" />
-      <text x={w / 2} y={11.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="oklch(0.97 0 0)">
+      <rect width={w} height={16 * k} rx={8 * k} fill="oklch(0.36 0.03 255 / 0.92)" />
+      <text x={w / 2} y={11.5 * k} textAnchor="middle" fontSize={9.5 * k} fontWeight={700} fill="oklch(0.97 0 0)">
         {text}
       </text>
     </g>
   );
 }
 
-function Events({ events, max }: { events?: MissionEventRec[]; max: number }) {
+function Events({ events, max, k = 1 }: { events?: MissionEventRec[]; max: number; k?: number }) {
   if (!events) return null;
   const shown = events.filter((e) => e.t >= 0 && e.t <= max && e.label !== "MOTORS OFF");
   return (
@@ -61,7 +61,7 @@ function Events({ events, max }: { events?: MissionEventRec[]; max: number }) {
           ifOverflow="visible"
           stroke="oklch(0.88 0.15 98 / 0.55)"
           strokeDasharray="3 3"
-          label={<EventPill text={e.label} row={i % 3} />}
+          label={<EventPill text={e.label} row={i % 3} k={k} />}
         />
       ))}
     </>
@@ -81,6 +81,9 @@ export function SeriesChart({
   showEvents = false,
   legend = true,
   big,
+  fill,
+  isro,
+  xAuto,
 }: {
   title?: string;
   unit?: string;
@@ -94,12 +97,15 @@ export function SeriesChart({
   showEvents?: boolean;
   legend?: boolean;
   big?: boolean;
+  fill?: boolean;
+  isro?: boolean;
+  xAuto?: boolean;
 }) {
   const hasRight = lines.some((l) => l.axis === "right");
   const last = data.at(-1);
   const maxT = last ? last.t : 0;
   return (
-    <div className="well p-2.5 flex flex-col gap-1.5">
+    <div className={`well p-2.5 flex flex-col gap-1.5 ${fill ? "h-full" : ""}`}>
       {title ? (
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="label-mono text-[10px]" style={{ color: "oklch(0.86 0.04 250)" }}>
@@ -126,15 +132,15 @@ export function SeriesChart({
           ) : null}
         </div>
       ) : null}
-      <div style={{ height }}>
+      <div className={fill ? "flex-1 min-h-0" : undefined} style={fill ? undefined : { height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: showEvents ? 34 : 6, right: hasRight ? 6 : 10, left: -8, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: showEvents ? (isro ? 56 : 34) : 6, right: hasRight ? 6 : 10, left: -8, bottom: 0 }}>
             <CartesianGrid stroke={GRID} strokeDasharray="2 4" />
             <XAxis
               dataKey="t"
               type="number"
-              domain={xDomain}
-              tick={{ fill: AXIS, fontSize: 10 }}
+              domain={xAuto ? ["dataMin", "dataMax"] : xDomain}
+              tick={isro ? { fill: "oklch(0.98 0 0)", fontSize: 15, fontWeight: 700 } : { fill: AXIS, fontSize: 10 }}
               tickLine={false}
               axisLine={{ stroke: GRID }}
               label={big ? { value: "TIME [s]", position: "insideBottom", offset: -2, fill: AXIS, fontSize: 10 } : undefined}
@@ -142,10 +148,10 @@ export function SeriesChart({
             <YAxis
               yAxisId="left"
               domain={domainLeft ?? ["auto", "auto"]}
-              tick={{ fill: AXIS, fontSize: 10 }}
+              tick={isro ? { fill: "oklch(0.98 0 0)", fontSize: 15, fontWeight: 700 } : { fill: AXIS, fontSize: 10 }}
               tickLine={false}
               axisLine={{ stroke: GRID }}
-              width={44}
+              width={isro ? 56 : 44}
               label={
                 big && unit
                   ? { value: unit, angle: -90, position: "insideLeft", fill: AXIS, fontSize: 10, offset: 14 }
@@ -157,10 +163,10 @@ export function SeriesChart({
                 yAxisId="right"
                 orientation="right"
                 domain={domainRight ?? ["auto", "auto"]}
-                tick={{ fill: "oklch(0.74 0.15 20)", fontSize: 10 }}
+                tick={isro ? { fill: "oklch(0.74 0.15 20)", fontSize: 15, fontWeight: 700 } : { fill: "oklch(0.74 0.15 20)", fontSize: 10 }}
                 tickLine={false}
                 axisLine={{ stroke: GRID }}
-                width={44}
+                width={isro ? 56 : 44}
                 label={
                   big && rightUnit
                     ? { value: rightUnit, angle: 90, position: "insideRight", fill: "oklch(0.74 0.15 20)", fontSize: 10, offset: 14 }
@@ -174,7 +180,7 @@ export function SeriesChart({
               labelFormatter={(v) => `T+ ${v} s`}
               formatter={(v, name) => [typeof v === "number" ? v.toFixed(2) : String(v), String(name)]}
             />
-            {showEvents ? <Events events={events} max={maxT} /> : null}
+            {showEvents ? <Events events={events} max={maxT} k={isro ? 1.35 : 1} /> : null}
             {lines.map((l) => (
               <Line
                 key={l.key}
@@ -183,7 +189,7 @@ export function SeriesChart({
                 dataKey={l.key}
                 name={l.label}
                 stroke={l.color}
-                strokeWidth={l.width ?? 1.8}
+                strokeWidth={(l.width ?? 1.8) * (isro ? 1.3 : 1)}
                 strokeDasharray={l.dashed ? "5 4" : undefined}
                 dot={false}
                 isAnimationActive={false}

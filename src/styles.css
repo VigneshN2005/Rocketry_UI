@@ -163,3 +163,34 @@
 
 .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: oklch(0.36 0.04 255); border-radius: 6px; }
+
+/* ---- ISRO-style additions ------------------------------------------------ */
+@utility isro-serif {
+  font-family: Cambria, "Palatino Linotype", Georgia, "Times New Roman", serif;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+@utility clock-digits {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+@keyframes cansat-spin-kf {
+  0% { transform: scaleX(1); }
+  50% { transform: scaleX(0.3); }
+  100% { transform: scaleX(1); }
+}
+.cansat-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cansat-spin-kf 0.11s linear infinite;
+}
+
+@keyframes master-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.master-blink { animation: master-blink 0.9s ease-in-out infinite; }
