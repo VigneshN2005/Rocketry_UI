@@ -57,6 +57,8 @@ function Events({ events, max }: { events?: MissionEventRec[]; max: number }) {
         <ReferenceLine
           key={`${e.label}-${i}`}
           x={Math.round(e.t)}
+          yAxisId="left"
+          ifOverflow="visible"
           stroke="oklch(0.88 0.15 98 / 0.55)"
           strokeDasharray="3 3"
           label={<EventPill text={e.label} row={i % 3} />}

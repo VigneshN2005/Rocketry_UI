@@ -171,7 +171,7 @@ function RfChip({
         style={{ background: good ? "var(--ok)" : "var(--warn)" }}
       />
       <span className="readout text-[11px] text-muted-foreground">
-        {rf.rssi} dBm · SNR {rf.snr.toFixed(1)} dB · {rf.quality.toFixed(0)}%
+        {rf.rssi.toFixed(0)} dBm · SNR {rf.snr.toFixed(1)} dB · {rf.quality.toFixed(0)}%
       </span>
     </div>
   );

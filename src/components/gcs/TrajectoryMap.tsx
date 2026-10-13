@@ -64,7 +64,7 @@ export function TrajectoryMap({ f }: { f: CansatFrame }) {
     maxN += pad;
     let w = maxE - minE;
     let h = maxN - minN;
-    const aspect = 1.7;
+    const aspect = 2.25;
     if (w / h < aspect) {
       const nw = h * aspect;
       minE -= (nw - w) / 2;
@@ -77,7 +77,7 @@ export function TrajectoryMap({ f }: { f: CansatFrame }) {
     return { minE, minN, w, h };
   })();
 
-  const fs = view.w / 62;
+  const fs = view.w / 85;
   const step = niceStep(view.w / 7);
   const gridX: number[] = [];
   const gridY: number[] = [];
@@ -122,7 +122,7 @@ export function TrajectoryMap({ f }: { f: CansatFrame }) {
         <svg
           viewBox={`${view.minE} ${-(view.minN + view.h)} ${view.w} ${view.h}`}
           className="w-full block"
-          style={{ aspectRatio: "1.7 / 1" }}
+          style={{ aspectRatio: "2.25 / 1" }}
           preserveAspectRatio="xMidYMid meet"
         >
           {/* grid */}
@@ -147,7 +147,7 @@ export function TrajectoryMap({ f }: { f: CansatFrame }) {
           {RINGS_M.filter((r) => r > view.w / 45 && r < view.w * 0.9).map((r) => (
             <g key={`ring${r}`}>
               <circle cx={tE} cy={-tN} r={r} fill={r === 25 ? "oklch(0.78 0.15 155 / 0.1)" : "none"} stroke="oklch(0.85 0.1 100 / 0.5)" strokeWidth={1.2} strokeDasharray="6 5" vectorEffect="non-scaling-stroke" />
-              <text x={tE + r * 0.707 + fs * 0.3} y={-tN - r * 0.707} fontSize={fs * 0.8} fill="oklch(0.88 0.1 100 / 0.85)">
+              <text x={tE + r * 0.707 + fs * 0.3} y={-tN + r * 0.707 + fs * 0.9} fontSize={fs * 0.8} fill="oklch(0.88 0.1 100 / 0.85)">
                 {r} m
               </text>
             </g>
@@ -176,7 +176,7 @@ export function TrajectoryMap({ f }: { f: CansatFrame }) {
             if (!e.p) return null;
             const w = e.label.length * fs * 0.62 + fs * 1.3;
             const dx = fs * 1.2;
-            const dy = (e.i % 2 === 0 ? -1 : 1) * fs * 2.1;
+            const dy = (e.i % 2 === 0 ? -1 : 1) * fs * (2.2 + Math.floor(e.i / 2) * 2.4);
             return (
               <g key={`${e.label}-${e.i}`}>
                 <line x1={e.p.e} y1={-e.p.n} x2={e.p.e + dx} y2={-e.p.n + dy} stroke="oklch(0.95 0 0 / 0.55)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
