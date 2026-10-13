@@ -41,10 +41,10 @@ export function Header({
   }, []);
 
   return (
-    <header className="border-b border-border bg-[oklch(0.155_0_0)]/80 backdrop-blur">
+    <header className="border-b border-border bg-[oklch(0.16_0.035_255)]/80 backdrop-blur">
       <div className="px-5 py-3 flex items-center gap-6 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-md border border-cansat/50 flex items-center justify-center bg-[oklch(0.18_0.02_210)]">
+          <div className="h-8 w-8 rounded-md border border-cansat/50 flex items-center justify-center bg-[oklch(0.2_0.05_235)]">
             <Radio className="h-4 w-4" style={{ color: "var(--cansat)" }} />
           </div>
           <div className="leading-tight">

@@ -16,7 +16,7 @@ export function AttitudeIndicator({ pitch, roll, yaw, accent, label }: Props) {
           ATTITUDE
         </span>
       </div>
-      <div className="relative aspect-square rounded-full overflow-hidden border border-border bg-[oklch(0.16_0_0)]">
+      <div className="relative aspect-square rounded-full overflow-hidden border border-border bg-[oklch(0.15_0.03_255)]">
         <div
           className="absolute inset-0"
           style={{

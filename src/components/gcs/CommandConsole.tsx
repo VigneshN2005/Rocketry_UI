@@ -7,6 +7,7 @@ export type ConsoleEntry = {
   cmd: string;
   ack: "ACK" | "NAK" | "PENDING";
   exec?: "PASS" | "FAIL" | "PENDING";
+  note?: string;
 };
 
 type Props = {
@@ -27,7 +28,7 @@ export function CommandConsole({ entries }: Props) {
       </div>
       <div
         ref={ref}
-        className="flex-1 overflow-auto rounded-md bg-[oklch(0.14_0_0)] border border-border p-2 font-mono text-[11px] space-y-0.5"
+        className="flex-1 overflow-auto rounded-md bg-[oklch(0.13_0.03_255)] border border-border p-2 font-mono text-[11px] space-y-0.5"
       >
         {entries.length === 0 ? (
           <div className="text-muted-foreground text-[11px]">Awaiting commands…</div>
@@ -46,7 +47,10 @@ export function CommandConsole({ entries }: Props) {
               >
                 {e.channel}
               </span>
-              <span className="flex-1 truncate">{e.cmd}</span>
+              <span className="flex-1 truncate">
+                {e.cmd}
+                {e.note ? <span className="opacity-60"> · {e.note}</span> : null}
+              </span>
               <span
                 className="text-[10px] w-[52px] text-right"
                 style={{
