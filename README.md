@@ -6,15 +6,7 @@ Layout
 
  Single application window
 
- Two permanent dashboards side-by-side:
-
-Rocket Dashboard (Orange accents)
-
-CanSat Dashboard (Cyan accents)
-
- Both visible simultaneously
-
- Resizable splitter
+ One permanent CanSat dashboard (Cyan accents)
 
  Clean aerospace styling, high readability, competition-ready
 
@@ -22,73 +14,11 @@ Global Header
 
  Mission Clock
 
- Rocket RF Status
-
  CanSat RF Status
 
  Launch Site / Mission ID
 
  Alert Banner (Simulation Mode, Link Lost, Low Battery, Mission Complete)
-
-Rocket Dashboard
-
-Include:
-
- Flight State Timeline: BOOT → TEST_MODE → LAUNCH_PAD → ASCENT → PAYLOAD_SEPARATION → DESCENT → AEROBRAKE_RELEASE → IMPACT
-
- Live Telemetry Cards:
-
- Altitude, Velocity, Pressure, Temperature
-
- GPS Position
-
- Accelerometer XYZ
-
- Gyroscope XYZ
-
- Battery Voltage
-
- RSSI & Link Quality
-
- Sensor Health Indicators
-
- Live Charts:
-
- Altitude
-
- Velocity
-
- Acceleration
-
- Gyroscope
-
- Pressure
-
- Temperature
-
- Battery
-
- Live GPS Map:
-
- Flight Path
-
- Launch Marker
-
- Predicted Landing Zone
-
- Separation Marker
-
- Landing Marker
-
- Commands:
-
- TELEMETRY_ENABLE
-
- ZERO_ALTITUDE
-
- ZERO_ACCEL
-
- COMM_TEST
 
 CanSat Dashboard
 
@@ -200,7 +130,7 @@ Technical Requirements
 
  QThread-based telemetry workers
 
- Separate threads for Rocket and CanSat
+ Dedicated thread for the CanSat link
 
  Non-blocking UI
 

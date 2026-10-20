@@ -49,7 +49,7 @@ export function CommandButton({
     <button
       onClick={onClick}
       title={note}
-      className="group panel px-2.5 py-2 text-left transition-colors hover:bg-[oklch(0.21_0_0)] active:scale-[0.99]"
+      className="group panel px-2.5 py-2 text-left transition-colors hover:bg-[oklch(0.25_0.045_255)] active:scale-[0.99]"
       style={{
         borderColor: sc ?? (isDanger ? "oklch(0.55 0.2 25)" : undefined),
         background: isSolid ? accent : undefined,
@@ -125,7 +125,7 @@ export function CommandGrid({
 
       {confirming ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="panel p-4 max-w-sm w-full flex flex-col gap-3 bg-[oklch(0.17_0_0)]">
+          <div className="panel p-4 max-w-sm w-full flex flex-col gap-3 bg-[oklch(0.18_0.035_255)]">
             <span className="label-mono" style={{ color: "var(--warn)" }}>
               Confirm Command
             </span>
@@ -139,7 +139,7 @@ export function CommandGrid({
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setConfirming(null)}
-                className="panel px-2 py-2 label-mono text-[10px] hover:bg-[oklch(0.21_0_0)]"
+                className="panel px-2 py-2 label-mono text-[10px] hover:bg-[oklch(0.25_0.045_255)]"
               >
                 Cancel
               </button>

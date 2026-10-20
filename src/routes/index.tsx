@@ -1,11 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Header, type MissionEvent, type SystemStatus } from "@/components/gcs/Header";
-import { RocketDashboard } from "@/components/gcs/RocketDashboard";
-import { CansatDashboard } from "@/components/gcs/CansatDashboard";
-import { AttitudeIndicator } from "@/components/gcs/AttitudeIndicator";
-import { PacketMonitor } from "@/components/gcs/PacketMonitor";
-import { TrajectoryPanel } from "@/components/gcs/TrajectoryPanel";
+import { Pause, Play, RotateCcw, X } from "lucide-react";
+import { Header, type SystemStatus } from "@/components/gcs/Header";
+import { StatusFooter } from "@/components/gcs/StatusFooter";
+import { TrajectoryScreen } from "@/components/gcs/TrajectoryScreen";
+import { FlightParamsScreen } from "@/components/gcs/FlightParamsScreen";
+import { LivePlots } from "@/components/gcs/LivePlots";
+import { ParameterBox } from "@/components/gcs/ParameterBox";
+import { SensorsPanel } from "@/components/gcs/SensorsPanel";
+import { LandingPanel } from "@/components/gcs/LandingPanel";
+import { HealthLinkPanel } from "@/components/gcs/HealthLinkPanel";
+import { CommandsPanel } from "@/components/gcs/CommandsPanel";
 import {
   AlertsPanel,
   type ActiveAlert,
@@ -14,23 +19,27 @@ import {
 } from "@/components/gcs/AlertsPanel";
 import { CommandConsole, type ConsoleEntry } from "@/components/gcs/CommandConsole";
 import type { CmdStage } from "@/components/gcs/CommandButton";
-import { useTelemetry } from "@/components/gcs/telemetry";
+import type { CommandResult, PlaybackSpeed } from "@/components/gcs/telemetry";
+import { useGroundLink } from "@/components/gcs/comm/useGroundLink";
+import { LinkScreen } from "@/components/gcs/LinkScreen";
+import "@/components/gcs/comm/safeNumber";
+import { MISSION_ID, SITE_NAME } from "@/components/gcs/mission";
 
 export const Route = createFileRoute("/")({
   component: GroundStation,
   head: () => ({
     meta: [
-      { title: "Mission Ground Station · Rocket + CanSat Telemetry" },
+      { title: "Mission Ground Station · CanSat Telemetry" },
       {
         name: "description",
         content:
-          "Live aerospace ground control station: rocket and CanSat telemetry, flight state timelines, trajectory maps, alerts and command console.",
+          "CanSat ground station: descent trajectory, flight graphs, sensor panels, landing-logic status, health, signal and command console.",
       },
-      { property: "og:title", content: "Mission Ground Station · Rocket + CanSat Telemetry" },
+      { property: "og:title", content: "Mission Ground Station · CanSat Telemetry" },
       {
         property: "og:description",
         content:
-          "Real-time telemetry dashboards, trajectory tracking, mission alerts and command uplink for a CanSat competition flight.",
+          "Real-time CanSat telemetry, trajectory, error tracking, health and command uplink for a CanSat competition flight.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -42,58 +51,43 @@ function stamp() {
   return new Date().toISOString().slice(11, 19);
 }
 
+type ScreenId = "trajectory" | "params" | "plots" | "sensors" | "landing" | "health" | "commands" | "link";
+const SCREENS: { id: ScreenId; label: string }[] = [
+  { id: "trajectory", label: "Trajectory" },
+  { id: "params", label: "Flight Parameters" },
+  { id: "plots", label: "Telemetry Plots" },
+  { id: "sensors", label: "Sensors" },
+  { id: "landing", label: "Landing Logic" },
+  { id: "health", label: "Health & Signal" },
+  { id: "commands", label: "Commands & Alerts" },
+  { id: "link", label: "Data Link" },
+];
+
 function GroundStation() {
-  const { rocket, cansat } = useTelemetry();
+  const [speed, setSpeed] = useState<PlaybackSpeed>("5x");
+  const [paused, setPaused] = useState(false);
+  const link = useGroundLink(speed, paused);
+  const { cansat, restart } = link;
+  const { assistOff, setTarget } = link.sim;
+  const [screen, setScreen] = useState<ScreenId>("trajectory");
+  const [drawer, setDrawer] = useState(false);
+  const [stateTimes, setStateTimes] = useState<Record<string, string>>({});
+
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
   const nextId = useRef(1);
-  const [simSpeed, setSimSpeed] = useState<"1x" | "2x" | "5x">("1x");
-  const [rfChannel, setRfChannel] = useState("433.920 MHz");
-
-  const [packets, setPackets] = useState({ tx: 0, rx: 0, loss: 0 });
-  useEffect(() => {
-    const id = setInterval(() => {
-      setPackets((p) => ({
-        tx: p.tx + 3,
-        rx: p.rx + 5,
-        loss: p.loss + (Math.random() < 0.1 ? 1 : 0),
-      }));
-    }, 500);
-    return () => clearInterval(id);
-  }, []);
-
-  // ---- Mission event log -------------------------------------------------
-  const [events, setEvents] = useState<MissionEvent[]>([]);
-  const prevRocketState = useRef(rocket.state);
-  const prevCansatState = useRef(cansat.state);
-  useEffect(() => {
-    const add = (label: string) => setEvents((e) => [...e, { label, time: stamp() }].slice(-30));
-
-    if (prevRocketState.current !== rocket.state) {
-      if (rocket.state === "LIFTOFF") {
-        add("IGNITION");
-        add("LIFT-OFF");
-      } else if (rocket.state === "APOGEE") add("APOGEE");
-      else if (rocket.state === "PAYLOAD_SEPARATION") {
-        add("DROGUE DEPLOY");
-        add("PAYLOAD SEPARATION");
-      } else if (rocket.state === "AEROBRAKE_RELEASE") add("MAIN / AEROBRAKE RELEASE");
-      else if (rocket.state === "IMPACT") add("TOUCHDOWN");
-      prevRocketState.current = rocket.state;
-    }
-    if (prevCansatState.current !== cansat.state) {
-      if (cansat.state === "EJECTION") add("CANSAT EJECTION");
-      else if (cansat.state === "CONTROLLED_DESCENT") add("PROPELLER DEPLOY / CONTROLLED DESCENT");
-      else if (cansat.state === "LANDED") add("CANSAT TOUCHDOWN");
-      else if (cansat.state === "MISSION_COMPLETE") add("MISSION COMPLETE");
-      prevCansatState.current = cansat.state;
-    }
-  }, [rocket.state, cansat.state]);
 
   // ---- Command lifecycle -------------------------------------------------
+  const [parachuteFail, setParachuteFail] = useState(false);
+  const raiseParachuteFailure = () => {
+    setParachuteFail(true);
+    setTimeout(() => setParachuteFail(false), 12000);
+  };
+
   const pushCommand = (
     channel: ConsoleEntry["channel"],
     cmd: string,
     onStage?: (stage: CmdStage) => void,
+    run?: () => CommandResult,
   ) => {
     const id = nextId.current++;
     setEntries((e) =>
@@ -101,59 +95,108 @@ function GroundStation() {
     );
     onStage?.("SENT");
 
-    const acked = Math.random() > 0.06;
-    setTimeout(() => {
-      setEntries((e) => e.map((x) => (x.id === id ? { ...x, ack: acked ? "ACK" : "NAK" } : x)));
-      onStage?.(acked ? "ACK" : "NAK");
-      if (!acked) {
-        setEntries((e) => e.map((x) => (x.id === id ? { ...x, exec: "FAIL" } : x)));
-        if (cmd.startsWith("DEPLOY")) raiseParachuteFailure();
-        return;
-      }
-      const passed = Math.random() > 0.08;
-      setTimeout(() => {
-        setEntries((e) => e.map((x) => (x.id === id ? { ...x, exec: passed ? "PASS" : "FAIL" } : x)));
-        onStage?.(passed ? "PASS" : "FAIL");
-        if (!passed && cmd.startsWith("DEPLOY")) raiseParachuteFailure();
-      }, 500 + Math.random() * 500);
-    }, 400 + Math.random() * 400);
+    const acked = run ? true : Math.random() > 0.06;
+    setTimeout(
+      () => {
+        setEntries((e) => e.map((x) => (x.id === id ? { ...x, ack: acked ? "ACK" : "NAK" } : x)));
+        onStage?.(acked ? "ACK" : "NAK");
+        if (!acked) {
+          setEntries((e) => e.map((x) => (x.id === id ? { ...x, exec: "FAIL" } : x)));
+          if (cmd.startsWith("DEPLOY")) raiseParachuteFailure();
+          return;
+        }
+        setTimeout(
+          () => {
+            const result = run ? run() : undefined;
+            const passed = result ? result.ok : Math.random() > 0.08;
+            setEntries((e) =>
+              e.map((x) =>
+                x.id === id ? { ...x, exec: passed ? "PASS" : "FAIL", note: result?.reason } : x,
+              ),
+            );
+            onStage?.(passed ? "PASS" : "FAIL");
+            if (!passed && cmd.startsWith("DEPLOY")) raiseParachuteFailure();
+          },
+          500 + Math.random() * 500,
+        );
+      },
+      400 + Math.random() * 400,
+    );
   };
+
+  // Live modes: the command goes out over the link and the real ACK/NAK and
+  // PASS/FAIL replies drive the console. Simulator mode keeps the simulated flow.
+  const pushLive = (cmd: string, onStage?: (stage: CmdStage) => void) => {
+    const id = nextId.current++;
+    setEntries((e) =>
+      [...e, { id, t: stamp(), channel: "CANSAT" as const, cmd, ack: "PENDING" as const, exec: "PENDING" as const }].slice(-80),
+    );
+    onStage?.("SENT");
+    link.sendCommand(cmd, (stage, reason) => {
+      setEntries((e) =>
+        e.map((x) => {
+          if (x.id !== id) return x;
+          if (stage === "ACK") return { ...x, ack: "ACK" as const };
+          if (stage === "NAK") return { ...x, ack: "NAK" as const, exec: "FAIL" as const, note: reason };
+          return { ...x, exec: stage, note: reason };
+        }),
+      );
+      onStage?.(stage);
+      if ((stage === "FAIL" || stage === "NAK") && cmd.startsWith("DEPLOY")) raiseParachuteFailure();
+    });
+  };
+
+  const onCommand = (c: string, onStage: (s: CmdStage) => void) =>
+    link.live ? pushLive(c, onStage) : pushCommand("CANSAT", c, onStage, c === "ASSIST_OFF" ? assistOff : undefined);
+
+  const onSetTarget = (lat: number, lon: number, onStage: (s: CmdStage) => void) =>
+    link.live
+      ? pushLive(`SET_TARGET ${lat.toFixed(5)},${lon.toFixed(5)}`, onStage)
+      : pushCommand("CANSAT", `SET_TARGET ${lat.toFixed(5)},${lon.toFixed(5)}`, onStage, () => setTarget(lat, lon));
 
   // ---- Alerts ------------------------------------------------------------
-  const [parachuteFail, setParachuteFail] = useState(false);
-  const raiseParachuteFailure = () => {
-    setParachuteFail(true);
-    setTimeout(() => setParachuteFail(false), 12000);
-  };
-
   const now = Date.now();
   const conditions = useMemo(() => {
-    const list: { type: AlertType; level: "warn" | "danger"; source: ActiveAlert["source"]; detail?: string }[] = [];
-    const rocketStale = rocket.lastPacketAt > 0 && now - rocket.lastPacketAt > 3000;
-    const cansatStale = cansat.lastPacketAt > 0 && now - cansat.lastPacketAt > 3000;
-    if (rocket.linkQuality < 62 || rocket.rssi < -100)
-      list.push({ type: "COMMUNICATION LOST", level: "danger", source: "ROCKET" });
+    const list: {
+      type: AlertType;
+      level: "warn" | "danger";
+      source: ActiveAlert["source"];
+      detail?: string;
+    }[] = [];
+    const stale = !paused && cansat.lastPacketAt > 0 && now - cansat.lastPacketAt > 3000;
     if (cansat.linkQuality < 58 || cansat.rssi < -100)
       list.push({ type: "COMMUNICATION LOST", level: "danger", source: "CANSAT" });
-    if (rocketStale) list.push({ type: "TELEMETRY TIMEOUT", level: "danger", source: "ROCKET" });
-    if (cansatStale) list.push({ type: "TELEMETRY TIMEOUT", level: "danger", source: "CANSAT" });
-    if (rocket.battery < 11.2)
-      list.push({ type: "LOW BATTERY", level: "warn", source: "ROCKET", detail: `${rocket.battery.toFixed(2)} V` });
-    if (cansat.battery < 7.0)
-      list.push({ type: "LOW BATTERY", level: "warn", source: "CANSAT", detail: `${cansat.battery.toFixed(2)} V` });
-    if (rocket.temperature > 45)
-      list.push({ type: "HIGH TEMPERATURE", level: "warn", source: "ROCKET", detail: `${rocket.temperature.toFixed(1)} °C` });
-    if (cansat.irTemp > 45)
-      list.push({ type: "HIGH TEMPERATURE", level: "warn", source: "CANSAT", detail: `${cansat.irTemp.toFixed(1)} °C` });
-    if (!rocket.gpsValid) list.push({ type: "GPS INVALID", level: "warn", source: "ROCKET" });
-    if (!cansat.gpsValid) list.push({ type: "GPS INVALID", level: "warn", source: "CANSAT" });
-    if (parachuteFail)
-      list.push({ type: "PARACHUTE COMMAND FAILED", level: "danger", source: "SYS" });
+    if (stale) list.push({ type: "TELEMETRY TIMEOUT", level: "danger", source: "CANSAT" });
+    if (cansat.ina.busV < 7.0)
+      list.push({ type: "LOW BATTERY", level: "warn", source: "CANSAT", detail: `${cansat.ina.busV.toFixed(2)} V` });
+    if (cansat.sht.temp > 45)
+      list.push({ type: "HIGH TEMPERATURE", level: "warn", source: "CANSAT", detail: `${cansat.sht.temp.toFixed(1)} °C` });
+    if (cansat.gnss.fix !== "3D") list.push({ type: "GPS INVALID", level: "warn", source: "CANSAT" });
+    for (const fault of cansat.faults) {
+      if (
+        fault === "VISION LOW SCORE" ||
+        fault === "VISION DEGRADED" ||
+        fault === "TARGET OUT OF REACH" ||
+        fault === "WEAK LINK"
+      )
+        list.push({ type: fault, level: "warn", source: "CANSAT" });
+      if (fault === "PASSIVE SAFE LATCHED")
+        list.push({ type: "PASSIVE SAFE LATCHED", level: "danger", source: "CANSAT" });
+    }
+    if (parachuteFail) list.push({ type: "PARACHUTE COMMAND FAILED", level: "danger", source: "SYS" });
     return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    rocket.linkQuality, rocket.rssi, rocket.battery, rocket.temperature, rocket.gpsValid, rocket.lastPacketAt,
-    cansat.linkQuality, cansat.rssi, cansat.battery, cansat.irTemp, cansat.gpsValid, cansat.lastPacketAt,
-    parachuteFail, now,
+    cansat.linkQuality,
+    cansat.rssi,
+    cansat.ina.busV,
+    cansat.sht.temp,
+    cansat.gnss.fix,
+    cansat.faults.join("|"),
+    cansat.lastPacketAt,
+    parachuteFail,
+    paused,
+    now,
   ]);
 
   const [activeAlerts, setActiveAlerts] = useState<ActiveAlert[]>([]);
@@ -183,19 +226,30 @@ function GroundStation() {
     });
   }, [conditions]);
 
-  // ---- Derived mission phase / status ------------------------------------
+  // ---- Header data -------------------------------------------------------
+  useEffect(() => {
+    setStateTimes((prev) =>
+      cansat.state === "STANDBY" ? { STANDBY: stamp() } : prev[cansat.state] ? prev : { ...prev, [cansat.state]: stamp() },
+    );
+  }, [cansat.state]);
+
   const missionPhase = useMemo(() => {
-    if (cansat.state === "MISSION_COMPLETE") return "MISSION COMPLETE";
-    if (cansat.state === "LANDED" && rocket.state === "IMPACT") return "RECOVERY";
-    if (cansat.state === "CONTROLLED_DESCENT") return "CANSAT CONTROLLED DESCENT";
-    if (cansat.state === "PRIMARY_DESCENT" || cansat.state === "EJECTION") return "CANSAT DESCENT";
-    if (rocket.state === "IMPACT") return "ROCKET LANDED";
-    if (rocket.state === "DESCENT" || rocket.state === "AEROBRAKE_RELEASE") return "ROCKET DESCENT";
-    if (rocket.state === "PAYLOAD_SEPARATION") return "PAYLOAD SEPARATION";
-    if (rocket.state === "APOGEE") return "APOGEE";
-    if (rocket.state === "ASCENT" || rocket.state === "LIFTOFF") return "ASCENT";
-    return "PRE-LAUNCH";
-  }, [rocket.state, cansat.state]);
+    switch (cansat.landing) {
+      case "IDLE":
+        return "PRE-SEPARATION";
+      case "L0":
+        return "PARACHUTE DESCENT";
+      case "L1":
+      case "L2":
+        return "ARMS DEPLOY";
+      case "L9":
+        return "PASSIVE SAFE DESCENT";
+      case "L10":
+        return cansat.state === "MISSION_COMPLETE" ? "MISSION COMPLETE" : "LANDED · RECOVERY";
+      default:
+        return `CONTROLLED DESCENT · ${cansat.landingName}`;
+    }
+  }, [cansat.landing, cansat.landingName, cansat.state]);
 
   const systemStatus: SystemStatus = activeAlerts.some((a) => a.level === "danger")
     ? "CRITICAL"
@@ -203,181 +257,135 @@ function GroundStation() {
       ? "DEGRADED"
       : "NOMINAL";
 
-  const linkStatus = (quality: number, lastPacketAt: number) => {
-    if (lastPacketAt > 0 && now - lastPacketAt > 3000) return "LOST" as const;
-    if (quality < 70) return "DEGRADED" as const;
-    return "CONNECTED" as const;
-  };
-
   const alert = useMemo(() => {
     const danger = activeAlerts.find((a) => a.level === "danger");
     if (danger) return { level: "danger" as const, message: `${danger.type} · ${danger.source}` };
     const warn = activeAlerts[0];
     if (warn) return { level: "warn" as const, message: `${warn.type} · ${warn.source}` };
-    if (cansat.state === "MISSION_COMPLETE")
-      return { level: "info" as const, message: "MISSION COMPLETE" };
+    if (cansat.state === "MISSION_COMPLETE") return { level: "info" as const, message: "MISSION COMPLETE" };
     return { level: "info" as const, message: "SIMULATION MODE · TELEMETRY NOMINAL" };
   }, [activeAlerts, cansat.state]);
 
-  const heading = (path: [number, number][]) => {
-    if (path.length < 2) return 0;
-    const a = path.at(-2)!;
-    const b = path.at(-1)!;
-    return (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
-  };
+  const ageS = paused ? 0 : Math.max(0, (now - cansat.lastPacketAt) / 1000);
+  const linkStatus = ageS > 3 ? "LOST" : cansat.linkQuality < 70 ? "DEGRADED" : "CONNECTED";
+
+  const navBtn = (id: ScreenId, label: string) => (
+    <button
+      key={id}
+      onClick={() => setScreen(id)}
+      className="px-3 py-1.5 rounded label-mono text-[10px] whitespace-nowrap border transition-colors"
+      style={{
+        borderColor: screen === id ? "var(--cansat)" : "transparent",
+        background: screen === id ? "oklch(0.27 0.07 235 / 0.7)" : undefined,
+        color: screen === id ? "oklch(0.98 0 0)" : undefined,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const controls = (
+    <>
+      <span className="label-mono text-[8.5px] mr-1 opacity-70 hidden xl:inline">SIMULATED PLAYBACK</span>
+      {(["1x", "5x", "10x"] as const).map((sp) => (
+        <button
+          key={sp}
+          onClick={() => setSpeed(sp)}
+          className="panel px-2 py-1 label-mono text-[9.5px] hover:bg-[oklch(0.25_0.045_255)]"
+          style={{ borderColor: speed === sp ? "var(--cansat)" : undefined, color: speed === sp ? "var(--cansat)" : undefined }}
+        >
+          {sp}
+        </button>
+      ))}
+      <button
+        onClick={() => setPaused((p) => !p)}
+        className="panel px-2 py-1 label-mono text-[9.5px] flex items-center gap-1 hover:bg-[oklch(0.25_0.045_255)]"
+        style={{ color: paused ? "var(--warn)" : undefined }}
+      >
+        {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+        {paused ? "Resume" : "Pause"}
+      </button>
+      <button
+        onClick={restart}
+        className="panel px-2 py-1 label-mono text-[9.5px] flex items-center gap-1 hover:bg-[oklch(0.25_0.045_255)]"
+      >
+        <RotateCcw className="h-3 w-3" /> Restart
+      </button>
+    </>
+  );
+
+  const scrollPage = "h-full overflow-y-auto scroll-thin p-4";
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <Header
-        rocketRf={{ rssi: rocket.rssi, snr: rocket.snr, quality: rocket.linkQuality }}
-        cansatRf={{ rssi: cansat.rssi, snr: cansat.snr, quality: cansat.linkQuality }}
-        missionId="CS-2026-042"
-        launchSite="Sriharikota · Pad-B"
-        alert={alert}
-        events={events}
+        missionId={MISSION_ID}
+        launchSite={SITE_NAME}
+        met={cansat.met}
         missionPhase={missionPhase}
+        cansatState={cansat.state}
         systemStatus={systemStatus}
+        alert={alert}
+        link={{
+          status: linkStatus,
+          text: `${link.live ? link.mode.toUpperCase() : "SIMULATED"} · ${cansat.rssi.toFixed(0)} dBm · SNR ${cansat.snr.toFixed(1)} dB`,
+        }}
+        nav={SCREENS.map((s) => navBtn(s.id, s.label))}
+        controls={controls}
       />
 
-      <main className="flex-1 p-4 flex flex-col gap-4">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div className="panel p-4">
-            <RocketDashboard
-              data={rocket}
-              onCommand={(c, onStage) => pushCommand("ROCKET", c, onStage)}
-            />
+      <main className="flex-1 min-h-0 relative">
+        {screen === "trajectory" ? (
+          <TrajectoryScreen f={cansat} missionTitle="FLAMESTON-26 / TEAM 020 · CANSAT MISSION" />
+        ) : null}
+        {screen === "params" ? <FlightParamsScreen f={cansat} /> : null}
+        {screen === "plots" ? <LivePlots f={cansat} /> : null}
+        {screen === "sensors" ? (
+          <div className={scrollPage}>
+            <SensorsPanel f={cansat} />
           </div>
-          <div className="panel p-4">
-            <CansatDashboard
-              data={cansat}
-              onCommand={(c, onStage) => pushCommand("CANSAT", c, onStage)}
-            />
+        ) : null}
+        {screen === "landing" ? (
+          <div className={scrollPage}>
+            <LandingPanel f={cansat} />
           </div>
-        </div>
-
-        <TrajectoryPanel
-          label="Rocket Flight Path"
-          accent="var(--rocket)"
-          path={rocket.path}
-          profile={rocket.charts.altitude}
-          profileColor="oklch(0.76 0.16 55)"
-          vector={{ headingDeg: heading(rocket.path), speed: rocket.velocity }}
-          markers={[
-            ...(rocket.markers.launch ? [{ label: "Launch Point", pos: rocket.markers.launch, color: "oklch(0.78 0.15 155)" }] : []),
-            ...(rocket.markers.apogee ? [{ label: "Apogee", pos: rocket.markers.apogee, color: "oklch(0.85 0.15 85)" }] : []),
-            ...(rocket.markers.drogue ? [{ label: "Drogue Deploy", pos: rocket.markers.drogue, color: "oklch(0.75 0.16 300)" }] : []),
-            ...(rocket.markers.main ? [{ label: "Main / Aerobrake", pos: rocket.markers.main, color: "oklch(0.8 0.14 210)" }] : []),
-            ...(rocket.markers.landing ? [{ label: "Landing Point", pos: rocket.markers.landing, color: "oklch(0.7 0.2 25)" }] : []),
-          ]}
-        />
-
-        <TrajectoryPanel
-          label="CanSat Descent Path"
-          accent="var(--cansat)"
-          path={cansat.path}
-          profile={cansat.charts.altitude}
-          profileColor="oklch(0.82 0.12 210)"
-          vector={{ headingDeg: heading(cansat.path), speed: cansat.velocity }}
-          predicted={cansat.markers.predicted ? { pos: cansat.markers.predicted, radiusM: 45 } : undefined}
-          markers={[
-            ...(cansat.markers.ejection ? [{ label: "Ejection", pos: cansat.markers.ejection, color: "oklch(0.78 0.15 155)" }] : []),
-            ...(cansat.markers.propeller ? [{ label: "Propeller Deploy", pos: cansat.markers.propeller, color: "oklch(0.85 0.15 85)" }] : []),
-            ...(cansat.markers.landing ? [{ label: "Landing Point", pos: cansat.markers.landing, color: "oklch(0.7 0.2 25)" }] : []),
-          ]}
-        />
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          <AttitudeIndicator
-            label="Rocket"
-            accent="var(--rocket)"
-            pitch={rocket.gyro[1] * 0.5}
-            roll={rocket.gyro[0] * 0.5}
-            yaw={rocket.gyro[2] * 0.5}
-          />
-          <AttitudeIndicator
-            label="CanSat"
-            accent="var(--cansat)"
-            pitch={cansat.propellers === "DEPLOYED" ? 8 : -2}
-            roll={Math.sin(cansat.t / 3) * 12}
-            yaw={cansat.t * 4}
-          />
-          <PacketMonitor
-            tx={packets.tx}
-            rx={packets.rx}
-            loss={packets.loss}
-            snr={(rocket.snr + cansat.snr) / 2}
-            lastPacket={stamp()}
-            rateHz={(rocket.updateRate + cansat.updateRate) / 2}
-            status={
-              linkStatus(rocket.linkQuality, rocket.lastPacketAt) === "LOST" ||
-              linkStatus(cansat.linkQuality, cansat.lastPacketAt) === "LOST"
-                ? "LOST"
-                : linkStatus(rocket.linkQuality, rocket.lastPacketAt) === "DEGRADED" ||
-                    linkStatus(cansat.linkQuality, cansat.lastPacketAt) === "DEGRADED"
-                  ? "DEGRADED"
-                  : "CONNECTED"
-            }
-          />
-          <div className="panel p-3 flex flex-col gap-2">
-            <span className="label-mono">RF Config & Playback</span>
-            <div className="flex flex-col gap-1.5 text-xs">
-              <label className="label-mono text-[10px]">Frequency</label>
-              <select
-                value={rfChannel}
-                onChange={(e) => setRfChannel(e.target.value)}
-                className="panel px-2 py-1.5 bg-[oklch(0.16_0_0)] readout text-sm"
-              >
-                <option>433.920 MHz</option>
-                <option>868.100 MHz</option>
-                <option>915.000 MHz</option>
-                <option>2.4 GHz</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="label-mono text-[10px]">Playback Speed</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(["1x", "2x", "5x"] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSimSpeed(s)}
-                    className="panel px-2 py-1.5 label-mono text-[10px] hover:bg-[oklch(0.21_0_0)]"
-                    style={{
-                      borderColor: simSpeed === s ? "var(--foreground)" : undefined,
-                      color: simSpeed === s ? "var(--foreground)" : undefined,
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 mt-auto">
-              <button
-                onClick={() => pushCommand("SYS", "PLAYBACK_START")}
-                className="panel px-2 py-1.5 label-mono text-[10px] hover:bg-[oklch(0.21_0_0)]"
-              >
-                Start
-              </button>
-              <button
-                onClick={() => pushCommand("SYS", "PLAYBACK_PAUSE")}
-                className="panel px-2 py-1.5 label-mono text-[10px] hover:bg-[oklch(0.21_0_0)]"
-              >
-                Pause
-              </button>
+        ) : null}
+        {screen === "health" ? (
+          <div className={scrollPage}>
+            <HealthLinkPanel f={cansat} />
+          </div>
+        ) : null}
+        {screen === "commands" ? (
+          <div className={`${scrollPage} flex flex-col gap-4`}>
+            <CommandsPanel f={cansat} onCommand={onCommand} onSetTarget={onSetTarget} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <AlertsPanel active={activeAlerts} history={alertHistory} />
+              <CommandConsole entries={entries} />
             </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <AlertsPanel active={activeAlerts} history={alertHistory} />
-          <CommandConsole entries={entries} />
-        </div>
+        {screen === "link" ? <LinkScreen link={link} /> : null}
+
+        {/* slide-over: the complete parameter box */}
+        {drawer ? (
+          <aside
+            className="absolute right-0 top-0 bottom-0 z-30 w-[min(420px,100%)] overflow-y-auto scroll-thin p-3 border-l shadow-2xl"
+            style={{ background: "oklch(0.13 0.03 257 / 0.97)" }}
+          >
+            <button
+              onClick={() => setDrawer(false)}
+              className="absolute right-3 top-3 z-10 panel p-1 hover:bg-[oklch(0.25_0.045_255)]"
+              aria-label="Close parameter box"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <ParameterBox f={cansat} />
+          </aside>
+        ) : null}
       </main>
 
-      <footer className="border-t border-border px-5 py-2 flex items-center justify-between text-xs">
-        <span className="label-mono text-[10px]">Ground Station v1.0 · Simulated Telemetry</span>
-        <span className="label-mono text-[10px]">© CanSat Team 2026</span>
-      </footer>
+      <StatusFooter f={cansat} stateTimes={stateTimes} alertCount={activeAlerts.length} onParams={() => setDrawer((d) => !d)} />
     </div>
   );
 }

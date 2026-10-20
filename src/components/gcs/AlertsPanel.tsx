@@ -6,12 +6,17 @@ export type AlertType =
   | "HIGH TEMPERATURE"
   | "GPS INVALID"
   | "PARACHUTE COMMAND FAILED"
-  | "TELEMETRY TIMEOUT";
+  | "TELEMETRY TIMEOUT"
+  | "VISION LOW SCORE"
+  | "VISION DEGRADED"
+  | "TARGET OUT OF REACH"
+  | "PASSIVE SAFE LATCHED"
+  | "WEAK LINK";
 
 export type ActiveAlert = {
   type: AlertType;
   level: "warn" | "danger";
-  source: "ROCKET" | "CANSAT" | "SYS";
+  source: "CANSAT" | "SYS";
   since: string;
   detail?: string;
 };
@@ -44,7 +49,7 @@ export function AlertsPanel({ active, history }: Props) {
 
       <div className="flex flex-col gap-1">
         {active.length === 0 ? (
-          <div className="rounded-md border border-border bg-[oklch(0.16_0_0)] px-2 py-2 label-mono text-[10px]" style={{ color: "var(--ok)" }}>
+          <div className="rounded-md border border-border bg-[oklch(0.15_0.03_255)] px-2 py-2 label-mono text-[10px]" style={{ color: "var(--ok)" }}>
             No active alerts · all conditions nominal
           </div>
         ) : (
@@ -77,7 +82,7 @@ export function AlertsPanel({ active, history }: Props) {
 
       <div className="mt-1 flex-1 min-h-[70px] flex flex-col gap-1">
         <span className="label-mono text-[9px] opacity-60">Alert History</span>
-        <div className="flex-1 overflow-auto rounded-md bg-[oklch(0.14_0_0)] border border-border p-2 font-mono text-[10px] space-y-0.5">
+        <div className="flex-1 overflow-auto rounded-md bg-[oklch(0.13_0.03_255)] border border-border p-2 font-mono text-[10px] space-y-0.5">
           {history.length === 0 ? (
             <div className="text-muted-foreground">No alerts recorded.</div>
           ) : (

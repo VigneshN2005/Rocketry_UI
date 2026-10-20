@@ -6,7 +6,10 @@ type Props = {
   label: string;
 };
 
-export function AttitudeIndicator({ pitch, roll, yaw, accent, label }: Props) {
+export function AttitudeIndicator({ pitch: pitchIn, roll: rollIn, yaw: yawIn, accent, label }: Props) {
+  const pitch = Number.isFinite(pitchIn) ? pitchIn : 0;
+  const roll = Number.isFinite(rollIn) ? rollIn : 0;
+  const yaw = Number.isFinite(yawIn) ? yawIn : 0;
   const p = Math.max(-45, Math.min(45, pitch));
   return (
     <div className="panel p-3 flex flex-col gap-2">
@@ -16,7 +19,7 @@ export function AttitudeIndicator({ pitch, roll, yaw, accent, label }: Props) {
           ATTITUDE
         </span>
       </div>
-      <div className="relative aspect-square rounded-full overflow-hidden border border-border bg-[oklch(0.16_0_0)]">
+      <div className="relative aspect-square rounded-full overflow-hidden border border-border bg-[oklch(0.15_0.03_255)]">
         <div
           className="absolute inset-0"
           style={{
