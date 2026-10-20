@@ -9,8 +9,8 @@ const YELLOW = "oklch(0.88 0.15 98)";
  * motors are running.
  */
 export function CansatInset({ f }: { f: CansatFrame }) {
-  const roll = Math.max(-25, Math.min(25, f.imu.roll));
-  const pitch = Math.max(-25, Math.min(25, f.imu.pitch));
+  const roll = Number.isFinite(f.imu.roll) ? Math.max(-25, Math.min(25, f.imu.roll)) : 0;
+  const pitch = Number.isFinite(f.imu.pitch) ? Math.max(-25, Math.min(25, f.imu.pitch)) : 0;
   const motorsOn = f.thrustN > 0.05;
   const chute = f.state !== "STANDBY" && f.state !== "BOOT";
   const armAngle = f.arms.length ? f.arms.reduce((a, b) => a + b, 0) / f.arms.length : 0; // 0..90 deg

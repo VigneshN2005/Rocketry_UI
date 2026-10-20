@@ -19,7 +19,10 @@ import {
 } from "@/components/gcs/AlertsPanel";
 import { CommandConsole, type ConsoleEntry } from "@/components/gcs/CommandConsole";
 import type { CmdStage } from "@/components/gcs/CommandButton";
-import { useTelemetry, type CommandResult, type PlaybackSpeed } from "@/components/gcs/telemetry";
+import type { CommandResult, PlaybackSpeed } from "@/components/gcs/telemetry";
+import { useGroundLink } from "@/components/gcs/comm/useGroundLink";
+import { LinkScreen } from "@/components/gcs/LinkScreen";
+import "@/components/gcs/comm/safeNumber";
 import { MISSION_ID, SITE_NAME } from "@/components/gcs/mission";
 
 export const Route = createFileRoute("/")({
@@ -48,7 +51,7 @@ function stamp() {
   return new Date().toISOString().slice(11, 19);
 }
 
-type ScreenId = "trajectory" | "params" | "plots" | "sensors" | "landing" | "health" | "commands";
+type ScreenId = "trajectory" | "params" | "plots" | "sensors" | "landing" | "health" | "commands" | "link";
 const SCREENS: { id: ScreenId; label: string }[] = [
   { id: "trajectory", label: "Trajectory" },
   { id: "params", label: "Flight Parameters" },
@@ -57,12 +60,15 @@ const SCREENS: { id: ScreenId; label: string }[] = [
   { id: "landing", label: "Landing Logic" },
   { id: "health", label: "Health & Signal" },
   { id: "commands", label: "Commands & Alerts" },
+  { id: "link", label: "Data Link" },
 ];
 
 function GroundStation() {
   const [speed, setSpeed] = useState<PlaybackSpeed>("5x");
   const [paused, setPaused] = useState(false);
-  const { cansat, restart, assistOff, setTarget } = useTelemetry(speed, paused);
+  const link = useGroundLink(speed, paused);
+  const { cansat, restart } = link;
+  const { assistOff, setTarget } = link.sim;
   const [screen, setScreen] = useState<ScreenId>("trajectory");
   const [drawer, setDrawer] = useState(false);
   const [stateTimes, setStateTimes] = useState<Record<string, string>>({});
@@ -118,11 +124,35 @@ function GroundStation() {
     );
   };
 
+  // Live modes: the command goes out over the link and the real ACK/NAK and
+  // PASS/FAIL replies drive the console. Simulator mode keeps the simulated flow.
+  const pushLive = (cmd: string, onStage?: (stage: CmdStage) => void) => {
+    const id = nextId.current++;
+    setEntries((e) =>
+      [...e, { id, t: stamp(), channel: "CANSAT" as const, cmd, ack: "PENDING" as const, exec: "PENDING" as const }].slice(-80),
+    );
+    onStage?.("SENT");
+    link.sendCommand(cmd, (stage, reason) => {
+      setEntries((e) =>
+        e.map((x) => {
+          if (x.id !== id) return x;
+          if (stage === "ACK") return { ...x, ack: "ACK" as const };
+          if (stage === "NAK") return { ...x, ack: "NAK" as const, exec: "FAIL" as const, note: reason };
+          return { ...x, exec: stage, note: reason };
+        }),
+      );
+      onStage?.(stage);
+      if ((stage === "FAIL" || stage === "NAK") && cmd.startsWith("DEPLOY")) raiseParachuteFailure();
+    });
+  };
+
   const onCommand = (c: string, onStage: (s: CmdStage) => void) =>
-    pushCommand("CANSAT", c, onStage, c === "ASSIST_OFF" ? assistOff : undefined);
+    link.live ? pushLive(c, onStage) : pushCommand("CANSAT", c, onStage, c === "ASSIST_OFF" ? assistOff : undefined);
 
   const onSetTarget = (lat: number, lon: number, onStage: (s: CmdStage) => void) =>
-    pushCommand("CANSAT", `SET_TARGET ${lat.toFixed(5)},${lon.toFixed(5)}`, onStage, () => setTarget(lat, lon));
+    link.live
+      ? pushLive(`SET_TARGET ${lat.toFixed(5)},${lon.toFixed(5)}`, onStage)
+      : pushCommand("CANSAT", `SET_TARGET ${lat.toFixed(5)},${lon.toFixed(5)}`, onStage, () => setTarget(lat, lon));
 
   // ---- Alerts ------------------------------------------------------------
   const now = Date.now();
@@ -296,7 +326,10 @@ function GroundStation() {
         cansatState={cansat.state}
         systemStatus={systemStatus}
         alert={alert}
-        link={{ status: linkStatus, text: `${cansat.rssi.toFixed(0)} dBm · SNR ${cansat.snr.toFixed(1)} dB` }}
+        link={{
+          status: linkStatus,
+          text: `${link.live ? link.mode.toUpperCase() : "SIMULATED"} · ${cansat.rssi.toFixed(0)} dBm · SNR ${cansat.snr.toFixed(1)} dB`,
+        }}
         nav={SCREENS.map((s) => navBtn(s.id, s.label))}
         controls={controls}
       />
@@ -331,6 +364,8 @@ function GroundStation() {
             </div>
           </div>
         ) : null}
+
+        {screen === "link" ? <LinkScreen link={link} /> : null}
 
         {/* slide-over: the complete parameter box */}
         {drawer ? (

@@ -6,7 +6,10 @@ type Props = {
   label: string;
 };
 
-export function AttitudeIndicator({ pitch, roll, yaw, accent, label }: Props) {
+export function AttitudeIndicator({ pitch: pitchIn, roll: rollIn, yaw: yawIn, accent, label }: Props) {
+  const pitch = Number.isFinite(pitchIn) ? pitchIn : 0;
+  const roll = Number.isFinite(rollIn) ? rollIn : 0;
+  const yaw = Number.isFinite(yawIn) ? yawIn : 0;
   const p = Math.max(-45, Math.min(45, pitch));
   return (
     <div className="panel p-3 flex flex-col gap-2">

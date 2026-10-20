@@ -231,10 +231,16 @@ function RingView({ f }: { f: CansatFrame }) {
         <line x1={S / 2} x2={S / 2} y1={4} y2={S - 4} stroke="oklch(0.5 0.05 250 / 0.3)" />
         <line y1={S / 2} y2={S / 2} x1={4} x2={S - 4} stroke="oklch(0.5 0.05 250 / 0.3)" />
         <text x={S / 2 - 3} y={9} fontSize="8" fill="oklch(0.8 0.03 250)">N</text>
-        <line x1={S / 2} y1={S / 2} x2={ix} y2={iy} stroke={AMBER} strokeDasharray="2 3" />
-        <path d={`M${ix},${iy - 5} l5,5 l-5,5 l-5,-5 z`} fill={AMBER} fillOpacity={0.4} stroke={AMBER} />
+        {Number.isFinite(ix) && Number.isFinite(iy) ? (
+          <>
+            <line x1={S / 2} y1={S / 2} x2={ix} y2={iy} stroke={AMBER} strokeDasharray="2 3" />
+            <path d={`M${ix},${iy - 5} l5,5 l-5,5 l-5,-5 z`} fill={AMBER} fillOpacity={0.4} stroke={AMBER} />
+          </>
+        ) : null}
         <circle cx={S / 2} cy={S / 2} r="3" fill={GREEN} />
-        <circle cx={px} cy={py} r="5" fill={CYAN} stroke="oklch(0.15 0.03 255)" strokeWidth="1.5" />
+        {Number.isFinite(px) && Number.isFinite(py) ? (
+          <circle cx={px} cy={py} r="5" fill={CYAN} stroke="oklch(0.15 0.03 255)" strokeWidth="1.5" />
+        ) : null}
       </svg>
     </div>
   );
