@@ -152,7 +152,7 @@ export function LivePlots({ f }: { f: CansatFrame }) {
         <Card
           label="GPS"
           value={f.gnss.fix === "3D" ? `${f.gnss.sats} sats` : "NO FIX"}
-          sub={`${f.gnss.lat.toFixed(5)}, ${f.gnss.lon.toFixed(5)}`}
+          sub={`${f.gnss.lat.toFixed(4)}, ${f.gnss.lon.toFixed(4)}`}
           color={f.gnss.fix === "3D" ? GREEN : "oklch(0.72 0.19 35)"}
           stamp={stamp}
         />

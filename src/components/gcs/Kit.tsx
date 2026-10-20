@@ -95,7 +95,9 @@ export function Stat({
         {label}
       </div>
       <div className="flex items-baseline gap-1">
-        <span className={small ? "readout text-sm" : "readout text-lg"}>{value}</span>
+        <span className={small ? "readout text-sm" : "readout text-lg"}>
+          {typeof value === "number" && !Number.isFinite(value) ? "—" : value}
+        </span>
         {unit ? <span className="label-mono text-[9px]">{unit}</span> : null}
       </div>
     </div>
@@ -118,8 +120,8 @@ export function Bar({
   mark?: number;
   height?: number;
 }) {
-  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-  const mp = mark === undefined ? null : Math.max(0, Math.min(100, ((mark - min) / (max - min)) * 100));
+  const pct = Number.isFinite(value) ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0;
+  const mp = mark === undefined || !Number.isFinite(mark) ? null : Math.max(0, Math.min(100, ((mark - min) / (max - min)) * 100));
   return (
     <div className="relative rounded-full bg-[oklch(0.22_0.04_255)] overflow-hidden" style={{ height }}>
       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />

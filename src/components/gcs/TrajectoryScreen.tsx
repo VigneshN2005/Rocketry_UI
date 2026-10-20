@@ -90,8 +90,11 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
 
   const tE = f.targetE;
   const tN = f.targetN;
+  const hasPos = Number.isFinite(f.posE) && Number.isFinite(f.posN);
   const live: TrackPt | null =
-    f.met >= 0 ? { e: f.posE + tE, n: f.posN + tN, alt: f.altitude, t: f.met, ctrl: CTRL.has(f.landing) } : null;
+    hasPos
+      ? { e: f.posE + tE, n: f.posN + tN, alt: f.altitude, t: f.met, ctrl: CTRL.has(f.landing) }
+      : null;
   const track = live ? [...f.path, live] : f.path;
 
   // fit the view to the track, with the aspect of the container
@@ -106,10 +109,11 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
     ];
     for (const p of f.passivePath) pts.push([p.e, p.n]);
     for (const p of track) pts.push([p.e, p.n]);
-    let minE = Math.min(...pts.map((p) => p[0]));
-    let maxE = Math.max(...pts.map((p) => p[0]));
-    let minN = Math.min(...pts.map((p) => p[1]));
-    let maxN = Math.max(...pts.map((p) => p[1]));
+    const fin = pts.filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    let minE = Math.min(...fin.map((p) => p[0]));
+    let maxE = Math.max(...fin.map((p) => p[0]));
+    let minN = Math.min(...fin.map((p) => p[1]));
+    let maxN = Math.max(...fin.map((p) => p[1]));
     const pad = Math.max(maxE - minE, (maxN - minN) * aspect) * 0.09 + 25;
     minE -= pad * 1.3; // a little more room on the left for the inset and readout
     maxE += pad;
@@ -152,7 +156,7 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
   const descending = f.state === "PRIMARY_DESCENT" || f.state === "CONTROLLED_DESCENT" || f.state === "EJECTION";
   const bannerText =
     f.state === "MISSION_COMPLETE" ? "MISSION COMPLETE" : (f.events.at(-1)?.label ?? "AWAITING SEPARATION");
-  const wTo = (f.windFrom + 180) % 360;
+  const wTo = Number.isFinite(f.windFrom) ? (f.windFrom + 180) % 360 : null;
 
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden" style={{ background: "oklch(0.1 0.035 262)" }}>
@@ -229,12 +233,14 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
         ))}
 
         {/* pad */}
+        {Number.isFinite(f.padE) && Number.isFinite(f.padN) ? (
         <g>
           <rect x={f.padE - fs * 0.5} y={-f.padN - fs * 0.5} width={fs} height={fs} fill="none" stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
           <text x={f.padE + fs * 0.9} y={-f.padN + fs * 0.35} fontSize={fs * 0.9} fill="white" fontWeight={700} {...halo}>
             PAD
           </text>
         </g>
+        ) : null}
 
         {/* event markers: small red squares with rounded labels, staggered to avoid overlap */}
         {eventPts.map((e) => {
@@ -267,7 +273,7 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
         </g>
 
         {/* predicted landing */}
-        {descending && live ? (
+        {descending && live && Number.isFinite(f.impactE) && Number.isFinite(f.impactN) ? (
           <g>
             <line x1={live.e} y1={-live.n} x2={tE + f.impactE} y2={-(tN + f.impactN)} stroke={AMBER} strokeWidth={1.6} strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
             <path
@@ -337,9 +343,11 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
           </div>
           <svg width="26" height="26" viewBox="-13 -13 26 26" aria-hidden>
             <circle r="11" fill="none" stroke="oklch(0.45 0.05 250)" />
-            <g transform={`rotate(${wTo})`}>
-              <path d="M0,-9 L4,3 L0,0 L-4,3 Z" fill={CYAN} />
-            </g>
+            {wTo !== null ? (
+              <g transform={`rotate(${wTo})`}>
+                <path d="M0,-9 L4,3 L0,0 L-4,3 Z" fill={CYAN} />
+              </g>
+            ) : null}
           </svg>
         </div>
         <div className="flex flex-col gap-1 rounded-md px-2 py-1.5" style={{ background: "oklch(0.12 0.03 258 / 0.8)" }}>
@@ -394,8 +402,8 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
         style={{ background: "oklch(0.1 0.03 258 / 0.92)", border: "1px solid oklch(0.34 0.05 255)", borderLeft: 0, borderBottom: 0 }}
       >
         <ReadoutRow k="Time" v={`${f.met >= 0 ? "" : "−"}${Math.abs(f.met).toFixed(1)}`} u="s" />
-        <ReadoutRow k="Latitude" v={f.lat.toFixed(5)} u="°N" />
-        <ReadoutRow k="Longitude" v={f.lon.toFixed(5)} u="°E" />
+        <ReadoutRow k="Latitude" v={f.lat.toFixed(4)} u="°N" />
+        <ReadoutRow k="Longitude" v={f.lon.toFixed(4)} u="°E" />
         <ReadoutRow k="Altitude" v={f1(f.altitude)} u="m" />
         <ReadoutRow k="Velocity" v={f1(f.speed3d)} u="m/s" />
       </div>
@@ -492,7 +500,7 @@ function SideProfile({ f }: { f: CansatFrame }) {
   const y = (a: number) => T + (1 - a / 1050) * (H - T - B);
   const line = (arr: { r: number; a: number }[]) =>
     arr.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.r).toFixed(1)},${y(p.a).toFixed(1)}`).join(" ");
-  const live = f.met >= 0 ? { r: f.rangeToTarget, a: f.altitude } : null;
+  const live = f.met >= 0 && Number.isFinite(f.rangeToTarget) && Number.isFinite(f.altitude) ? { r: f.rangeToTarget, a: f.altitude } : null;
   const rTicks = [0, 0.25, 0.5, 0.75, 1].map((k) => Math.round(rMax * k));
   return (
     <div>
