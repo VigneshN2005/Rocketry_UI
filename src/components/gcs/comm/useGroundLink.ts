@@ -253,7 +253,8 @@ export function useGroundLink(speed: PlaybackSpeed, paused: boolean) {
     stats: link.builder.stats(),
     fields: link.builder.snapshotFields(),
     serialSupported: serialSupported(),
-    downloadCsv: () => download(`Flight_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`, link.builder.csv()),
+    // rulebook 6.3: the file is named Flight_<TEAM_ID>.csv
+    downloadCsv: () => download(`Flight_${link.builder.teamId() || "2026-IN-SPACe-CAN-7USAT-020"}.csv`, link.builder.csv()),
     downloadRawLog: () => download(`raw_link_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.log`, link.rawLog.join("\n") + "\n"),
   };
 }

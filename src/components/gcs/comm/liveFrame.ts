@@ -10,7 +10,7 @@ import {
   type LandingId,
 } from "../mission";
 import type { CansatFrame, CansatState, HealthItem, HistRow, MissionEventRec, TrackPt } from "../sim";
-import { TLM_FIELDS, type Parsed, type Values } from "./protocol";
+import { RULEBOOK_STATES, TLM_FIELDS, csvCell, csvHeader, type Parsed, type Values } from "./protocol";
 
 /**
  * Turns decoded packets into the CansatFrame the screens already draw.
@@ -31,7 +31,9 @@ const CTRL = new Set<string>(["L3", "L4", "L5", "L6", "L7", "L8"]);
 export function mapState(text: string, landing: LandingId): CansatState {
   if (CTRL.has(landing)) return "CONTROLLED_DESCENT";
   if (landing === "L10") return "LANDED";
-  const s = text.toUpperCase();
+  let s = text.trim().toUpperCase();
+  if (/^[0-7]$/.test(s)) s = RULEBOOK_STATES[Number(s)]; // rulebook numeric states 0..7
+  if (s.includes("ROCKET_DEPLOY") || s.includes("AEROBREAK")) return s.includes("AEROBREAK") ? "PRIMARY_DESCENT" : "EJECTION";
   if (s.includes("COMPLETE")) return "MISSION_COMPLETE";
   if (s.includes("IMPACT") || s.includes("LAND")) return "LANDED";
   if (s.includes("CONTROLLED")) return "CONTROLLED_DESCENT";
@@ -81,7 +83,7 @@ export class LiveFrameBuilder {
   private lastCount: number | null = null;
   private lastRxAt = 0;
   private rate = NAN;
-  private tlmLines: string[] = [];
+  private tlmRows: Values[] = [];
 
   reset() {
     Object.assign(this, new LiveFrameBuilder());
@@ -107,7 +109,14 @@ export class LiveFrameBuilder {
 
   /** CSV text of every telemetry packet received, with a header row. */
   csv(): string {
-    return [TLM_FIELDS.map((d) => d.key.toUpperCase()).join(","), ...this.tlmLines].join("\r\n") + "\r\n";
+    const rows = this.tlmRows.map((v) => TLM_FIELDS.map((d) => csvCell(d, v[d.key])).join(","));
+    return [TLM_FIELDS.map(csvHeader).join(","), ...rows].join("\r\n") + "\r\n";
+  }
+
+  /** Team ID from the latest packet (for the Flight_<TEAM_ID>.csv file name). */
+  teamId(): string {
+    const t = this.tlm?.teamId;
+    return typeof t === "string" && t ? t : "";
   }
 
   ingest(p: Parsed, rx: Rx) {
@@ -137,8 +146,9 @@ export class LiveFrameBuilder {
     this.tlm = v;
     this.tlmAt = rx.at;
     this.received++;
-    this.tlmLines.push(raw.replace(/\*[0-9A-Fa-f]{2}$/, ""));
-    if (this.tlmLines.length > 20000) this.tlmLines.shift();
+    void raw;
+    this.tlmRows.push(v);
+    if (this.tlmRows.length > 20000) this.tlmRows.shift();
 
     // packet loss from gaps in PACKET COUNT
     const count = num(v.count);

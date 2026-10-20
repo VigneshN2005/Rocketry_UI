@@ -402,8 +402,8 @@ export function TrajectoryScreen({ f, missionTitle }: { f: CansatFrame; missionT
         style={{ background: "oklch(0.1 0.03 258 / 0.92)", border: "1px solid oklch(0.34 0.05 255)", borderLeft: 0, borderBottom: 0 }}
       >
         <ReadoutRow k="Time" v={`${f.met >= 0 ? "" : "−"}${Math.abs(f.met).toFixed(1)}`} u="s" />
-        <ReadoutRow k="Latitude" v={f.lat.toFixed(5)} u="°N" />
-        <ReadoutRow k="Longitude" v={f.lon.toFixed(5)} u="°E" />
+        <ReadoutRow k="Latitude" v={f.lat.toFixed(4)} u="°N" />
+        <ReadoutRow k="Longitude" v={f.lon.toFixed(4)} u="°E" />
         <ReadoutRow k="Altitude" v={f1(f.altitude)} u="m" />
         <ReadoutRow k="Velocity" v={f1(f.speed3d)} u="m/s" />
       </div>

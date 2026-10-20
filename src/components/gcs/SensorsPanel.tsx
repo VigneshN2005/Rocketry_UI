@@ -131,7 +131,7 @@ export function SensorsPanel({ f }: { f: CansatFrame }) {
         status="OK"
       >
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="Pressure" value={f1(f.baro.pressure)} unit="hPa" color={CYAN} small />
+          <Stat label="Pressure" value={(f.baro.pressure * 100).toFixed(0)} unit="Pa" color={CYAN} small />
           <Stat label="Altitude" value={f1(f.baro.altitude)} unit="m" color={ALT} small />
           <Stat label="V. speed" value={f2(f.baro.vspeed)} unit="m/s" color={YELLOW} small />
         </div>
@@ -206,8 +206,8 @@ export function SensorsPanel({ f }: { f: CansatFrame }) {
         className="xl:col-span-2"
       >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <Stat label="Latitude" value={f.gnss.lat.toFixed(6)} unit="°N" color={CYAN} small />
-          <Stat label="Longitude" value={f.gnss.lon.toFixed(6)} unit="°E" color={CYAN} small />
+          <Stat label="Latitude" value={f.gnss.lat.toFixed(4)} unit="°N" color={CYAN} small />
+          <Stat label="Longitude" value={f.gnss.lon.toFixed(4)} unit="°E" color={CYAN} small />
           <Stat label="Altitude" value={f1(f.gnss.alt)} unit="m MSL" small />
           <Stat label="Speed" value={f2(f.gnss.speed)} unit="m/s" small />
           <Stat label="Satellites" value={f.gnss.sats} small color={gnssOk ? GREEN : RED} />

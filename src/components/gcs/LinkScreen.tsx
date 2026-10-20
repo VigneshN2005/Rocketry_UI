@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Download, PlugZap, Unplug, Upload } from "lucide-react";
 import type { useGroundLink, SourceMode } from "./comm/useGroundLink";
-import { LND_FIELDS, TLM_FIELDS, type FieldDef, type Values } from "./comm/protocol";
+import { LND_FIELDS, TLM_FIELDS, csvCell, type FieldDef, type Values } from "./comm/protocol";
 import type { LogTag } from "./comm/groundLink";
 import { PanelTitle, StatusChip } from "./Kit";
 
@@ -268,7 +268,7 @@ function FieldTable({ title, defs, values }: { title: string; defs: FieldDef[]; 
           <div key={d.key} className="flex items-baseline justify-between gap-3 py-[2px] border-b border-border/30 last:border-0">
             <span className="label-mono text-[9px] truncate">{d.label}</span>
             <span className="readout text-[11.5px] shrink-0" style={{ color: missing ? "oklch(0.55 0.02 250)" : undefined }}>
-              {missing ? (raw === undefined ? "—" : "invalid") : String(raw)}
+              {missing ? (raw === undefined ? "—" : "invalid") : csvCell(d, raw)}
               {!missing && d.unit ? <span className="label-mono text-[8.5px] ml-1">{d.unit}</span> : null}
             </span>
           </div>

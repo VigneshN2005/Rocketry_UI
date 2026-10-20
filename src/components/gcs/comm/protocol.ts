@@ -58,6 +58,32 @@ export const TLM_FIELDS: FieldDef[] = [
   { key: "curr", label: "OPTIONAL · CURRENT", unit: "mA", type: "float", min: -5000, max: 20000, sensor: "INA219" },
 ];
 
+/** Rulebook 6.3 display / CSV resolution (decimal places) for the mandatory fields. */
+export const RULEBOOK_DECIMALS: Record<string, number> = {
+  alt: 1,
+  press: 0,
+  temp: 1,
+  volt: 2,
+  lat: 4,
+  lon: 4,
+  gnssAlt: 1,
+};
+
+/** Rulebook 6.3 flight-software state examples (numeric form -> name). */
+export const RULEBOOK_STATES = ["BOOT", "TEST_MODE", "LAUNCH_PAD", "ASCENT", "ROCKET_DEPLOY", "DESCENT", "AEROBREAK_RELEASE", "IMPACT"];
+
+/** Column header for the judges' CSV: full field name with its unit. */
+export const csvHeader = (d: FieldDef) => (d.unit ? `${d.label} (${d.unit})` : d.label);
+
+/** Format one value for the judges' CSV at the rulebook resolution. */
+export function csvCell(d: FieldDef, v: number | string | undefined): string {
+  if (v === undefined || v === null) return "";
+  if (typeof v === "string") return v;
+  if (!Number.isFinite(v)) return "";
+  const dec = RULEBOOK_DECIMALS[d.key];
+  return dec !== undefined ? v.toFixed(dec) : String(v);
+}
+
 /** CONFIRM: landing-logic extension, about 1 per second. */
 export const LND_FIELDS: FieldDef[] = [
   { key: "met", label: "MET (since separation)", unit: "s", type: "float", min: -1000, max: 5000 },
